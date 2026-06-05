@@ -7,12 +7,17 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import LocationPicker from '@/components/game/LocationPicker';
-import { CalendarDays, Users, Trophy, Loader2 } from 'lucide-react';
+import { CalendarDays, Users, Trophy, Loader2, Lock, ShieldCheck } from 'lucide-react';
+
+const HOST_PASSWORD = 'kickoff2024';
 
 export default function CreateGame() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+  const [passcode, setPasscode] = useState('');
+  const [passcodeError, setPasscodeError] = useState(false);
   const [form, setForm] = useState({
     title: '',
     date: '',
@@ -44,6 +49,44 @@ export default function CreateGame() {
     setLoading(false);
     navigate(`/game/${game.id}`);
   };
+
+  if (!unlocked) {
+    return (
+      <div className="max-w-sm mx-auto px-4 py-20 flex flex-col items-center text-center">
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+          <Lock className="w-8 h-8 text-primary" />
+        </div>
+        <h1 className="font-display text-3xl tracking-wider mb-2">HOSTS ONLY</h1>
+        <p className="text-muted-foreground text-sm mb-8">Enter the host passcode to create a game.</p>
+        <div className="w-full space-y-3">
+          <Input
+            type="password"
+            placeholder="Enter passcode..."
+            value={passcode}
+            onChange={(e) => { setPasscode(e.target.value); setPasscodeError(false); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (passcode === HOST_PASSWORD) setUnlocked(true);
+                else setPasscodeError(true);
+              }
+            }}
+            className={`text-center text-lg h-12 ${passcodeError ? 'border-destructive' : ''}`}
+            autoFocus
+          />
+          {passcodeError && <p className="text-destructive text-sm">Incorrect passcode. Try again.</p>}
+          <Button
+            className="w-full h-12 font-heading tracking-wider text-lg"
+            onClick={() => {
+              if (passcode === HOST_PASSWORD) setUnlocked(true);
+              else setPasscodeError(true);
+            }}
+          >
+            <ShieldCheck className="w-4 h-4 mr-2" /> UNLOCK
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-xl mx-auto px-4 py-6">
