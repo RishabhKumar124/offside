@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import { Input } from '@/components/ui/input';
 import { MapPin } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
@@ -13,7 +13,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-function MapClick({ onLocationSelect }) {
+function MapClickHandler({ onLocationSelect }) {
   useMapEvents({
     click(e) {
       onLocationSelect(e.latlng.lat, e.latlng.lng);
@@ -22,8 +22,20 @@ function MapClick({ onLocationSelect }) {
   return null;
 }
 
+// Flies to coordinates when they change
+function MapFlyTo({ lat, lng }) {
+  const map = useMap();
+  useEffect(() => {
+    if (lat && lng) {
+      map.flyTo([lat, lng], map.getZoom());
+    }
+  }, [lat, lng, map]);
+  return null;
+}
+
 export default function LocationPicker({ lat, lng, locationName, onLocationChange, onNameChange, readOnly = false }) {
-  const center = lat && lng ? [lat, lng] : [51.505, -0.09];
+  const defaultCenter = [40.7128, -74.006]; // New York as default
+  const center = lat && lng ? [lat, lng] : defaultCenter;
 
   return (
     <div className="space-y-3">
@@ -38,23 +50,36 @@ export default function LocationPicker({ lat, lng, locationName, onLocationChang
           />
         </div>
       )}
-      <div className="rounded-xl overflow-hidden border h-[200px] md:h-[300px]">
+      {readOnly && locationName && (
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <MapPin className="w-4 h-4 text-primary" />
+          {locationName}
+        </div>
+      )}
+      <div className="rounded-xl overflow-hidden border h-[200px] md:h-[280px]">
         <MapContainer
           center={center}
           zoom={13}
           className="h-full w-full"
-          scrollWheelZoom={!readOnly}
+          scrollWheelZoom={false}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {!readOnly && <MapClick onLocationSelect={(la, ln) => onLocationChange?.(la, ln)} />}
-          {lat && lng && <Marker position={[lat, lng]} />}
+          {!readOnly && (
+            <MapClickHandler onLocationSelect={(la, ln) => onLocationChange?.(la, ln)} />
+          )}
+          {lat && lng && (
+            <>
+              <Marker position={[lat, lng]} />
+              <MapFlyTo lat={lat} lng={lng} />
+            </>
+          )}
         </MapContainer>
       </div>
       {!readOnly && (
-        <p className="text-xs text-muted-foreground">Click on the map to set the game location</p>
+        <p className="text-xs text-muted-foreground">📍 Click on the map to pin the game location</p>
       )}
     </div>
   );
