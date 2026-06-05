@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   MapPin, Calendar, Clock, Users, Shield, CheckCircle, XCircle,
-  Loader2, Trophy, UserPlus, UserMinus, Star, ArrowLeft, Pencil, X
+  Loader2, Trophy, UserPlus, UserMinus, Star, ArrowLeft, Pencil, X, Crown
 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
@@ -53,7 +53,7 @@ export default function GameDetail() {
   const goingRsvps = rsvps.filter(r => r.status === 'going');
   const waitlistRsvps = rsvps.filter(r => r.status === 'waitlist');
   const userRsvp = rsvps.find(r => r.user_id === user?.id);
-  const isHost = game?.host_id === user?.id || user?.role === 'admin';
+  const isHost = game?.host_id === user?.id;
 
   const isFull = goingRsvps.length >= (game?.max_players || 0);
 
@@ -305,10 +305,10 @@ export default function GameDetail() {
 
       {/* Tabs */}
       <Tabs defaultValue="details" className="mt-6">
-        <TabsList className="w-full grid grid-cols-4">
+        <TabsList className={`w-full grid ${isHost ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
-          <TabsTrigger value="teams">Teams</TabsTrigger>
+          {isHost && <TabsTrigger value="teams">Teams</TabsTrigger>}
           <TabsTrigger value="chat">Chat</TabsTrigger>
         </TabsList>
 
@@ -357,6 +357,41 @@ export default function GameDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* Announced teams (visible to all once announced) */}
+          {!isHost && game.teams_announced && (game.dark_team?.length > 0 || game.white_team?.length > 0) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Teams</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wide">⚫ Dark</p>
+                    <div className="space-y-1">
+                      {(game.dark_team || []).map(p => (
+                        <div key={p.user_id} className="flex items-center gap-2 text-sm">
+                          {p.photo ? <img src={p.photo} className="w-6 h-6 rounded-full object-cover" /> : <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">{p.name?.[0]}</div>}
+                          {p.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wide">⚪ White</p>
+                    <div className="space-y-1">
+                      {(game.white_team || []).map(p => (
+                        <div key={p.user_id} className="flex items-center gap-2 text-sm">
+                          {p.photo ? <img src={p.photo} className="w-6 h-6 rounded-full object-cover" /> : <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold">{p.name?.[0]}</div>}
+                          {p.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="players" className="mt-4 space-y-4">
@@ -370,19 +405,24 @@ export default function GameDetail() {
             <CardContent>
               <div className="space-y-2">
                 {goingRsvps.map(r => (
-                  <Link key={r.id} to={`/player/${r.user_id}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
-                    {r.user_photo ? (
-                      <img src={r.user_photo} alt="" className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                        {r.user_name?.[0]}
+                  <div key={r.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
+                    <Link to={`/player/${r.user_id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                      {r.user_photo ? (
+                        <img src={r.user_photo} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                          {r.user_name?.[0]}
+                        </div>
+                      )}
+                      <span className="text-sm font-medium truncate">{r.user_name}</span>
+                    </Link>
+                    {isHost && r.user_id !== user?.id && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <MakeOrganizerButton rsvp={r} game={game} gameId={id} />
+                        <RemovePlayerButton rsvp={r} gameId={id} />
                       </div>
                     )}
-                    <span className="text-sm font-medium">{r.user_name}</span>
-                    {isHost && r.user_id !== user?.id && (
-                      <RemovePlayerButton rsvp={r} gameId={id} />
-                    )}
-                  </Link>
+                  </div>
                 ))}
                 {goingRsvps.length === 0 && <p className="text-sm text-muted-foreground">No one has joined yet.</p>}
               </div>
@@ -420,15 +460,17 @@ export default function GameDetail() {
           )}
         </TabsContent>
 
-        <TabsContent value="teams" className="mt-4">
-          <TeamBuilder
-            game={game}
-            rsvps={rsvps}
-            isHost={isHost}
-            onSaveTeams={(dark, white) => saveTeamsMutation.mutate({ dark, white })}
-            onAnnounceTeams={() => announceTeamsMutation.mutate()}
-          />
-        </TabsContent>
+        {isHost && (
+          <TabsContent value="teams" className="mt-4">
+            <TeamBuilder
+              game={game}
+              rsvps={rsvps}
+              isHost={isHost}
+              onSaveTeams={(dark, white) => saveTeamsMutation.mutate({ dark, white })}
+              onAnnounceTeams={() => announceTeamsMutation.mutate()}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="chat" className="mt-4">
           <CommentSection gameId={id} user={user} />
@@ -440,6 +482,33 @@ export default function GameDetail() {
         <PlayerStatSubmission gameId={id} userId={user.id} userName={user.full_name} stats={stats} />
       )}
     </div>
+  );
+}
+
+function MakeOrganizerButton({ rsvp, game, gameId }) {
+  const queryClient = useQueryClient();
+  const isAlreadyOrganizer = game.host_id === rsvp.user_id;
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await base44.entities.Game.update(gameId, {
+        host_id: rsvp.user_id,
+        host_name: rsvp.user_name,
+        host_photo: rsvp.user_photo || '',
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', gameId] }),
+  });
+  if (isAlreadyOrganizer) return null;
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      title="Make organizer"
+      onClick={(e) => { e.preventDefault(); mutation.mutate(); }}
+      className="text-chart-3 hover:text-chart-3"
+    >
+      <Crown className="w-3.5 h-3.5" />
+    </Button>
   );
 }
 
