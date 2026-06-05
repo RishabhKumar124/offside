@@ -249,19 +249,30 @@ export default function GameDetail() {
       )}
 
       {/* RSVP Button */}
-      {user && game.status === 'upcoming' && (
+      {user && game.status === 'upcoming' && !isHost && (
         <div className="mb-6">
-          {userRsvp ? (
-            <Button onClick={() => rsvpMutation.mutate()} variant="outline" className="w-full h-12">
-              <UserMinus className="w-4 h-4 mr-2" />
-              {userRsvp.status === 'waitlist' ? 'Leave Waitlist' : 'Leave Game'}
-            </Button>
-          ) : (
-            <Button onClick={() => rsvpMutation.mutate()} className="w-full h-12 font-heading text-lg tracking-wider">
-              <UserPlus className="w-4 h-4 mr-2" />
-              {isFull ? 'JOIN WAITLIST' : 'JOIN GAME'}
-            </Button>
-          )}
+          {(() => {
+            const inTeam = [...(game.dark_team || []), ...(game.white_team || [])].some(p => p.user_id === user.id);
+            if (userRsvp || inTeam) {
+              return (
+                <Button
+                  onClick={() => userRsvp ? rsvpMutation.mutate() : null}
+                  variant="outline"
+                  className="w-full h-12"
+                  disabled={inTeam && !userRsvp}
+                >
+                  <UserMinus className="w-4 h-4 mr-2" />
+                  {userRsvp?.status === 'waitlist' ? 'Leave Waitlist' : 'Leave Game'}
+                </Button>
+              );
+            }
+            return (
+              <Button onClick={() => rsvpMutation.mutate()} className="w-full h-12 font-heading text-lg tracking-wider">
+                <UserPlus className="w-4 h-4 mr-2" />
+                {isFull ? 'JOIN WAITLIST' : 'JOIN GAME'}
+              </Button>
+            );
+          })()}
         </div>
       )}
 
