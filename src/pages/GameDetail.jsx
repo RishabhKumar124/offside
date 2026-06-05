@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
-import LocationPicker from '@/components/game/LocationPicker';
 import CommentSection from '@/components/game/CommentSection';
 import TeamBuilder from '@/components/game/TeamBuilder';
 
@@ -53,7 +52,7 @@ export default function GameDetail() {
   const goingRsvps = rsvps.filter(r => r.status === 'going');
   const waitlistRsvps = rsvps.filter(r => r.status === 'waitlist');
   const userRsvp = rsvps.find(r => r.user_id === user?.id);
-  const isHost = game?.host_id === user?.id;
+  const isHost = !!(game?.host_id && user?.id && game.host_id === user.id);
 
   const isFull = goingRsvps.length >= (game?.max_players || 0);
 
@@ -341,16 +340,19 @@ export default function GameDetail() {
             </CardContent>
           </Card>
 
-          {/* Map */}
-          {game.location_lat && game.location_lng && (
+          {/* Location link */}
+          {game.location_name && (
             <Card>
               <CardContent className="p-4">
-                <LocationPicker
-                  lat={game.location_lat}
-                  lng={game.location_lng}
-                  locationName={game.location_name}
-                  readOnly
-                />
+                <a
+                  href={`https://www.google.com/maps/search/${encodeURIComponent(game.location_name)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-primary hover:underline"
+                >
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  {game.location_name} — Open in Google Maps
+                </a>
               </CardContent>
             </Card>
           )}
