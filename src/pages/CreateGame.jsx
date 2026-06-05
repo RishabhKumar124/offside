@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
@@ -9,8 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import LocationPicker from '@/components/game/LocationPicker';
 import { CalendarDays, Users, Trophy, Loader2, Lock, ShieldCheck } from 'lucide-react';
 
-const HOST_PASSWORD = 'kickoff2024';
-
 export default function CreateGame() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -18,6 +17,12 @@ export default function CreateGame() {
   const [unlocked, setUnlocked] = useState(false);
   const [passcode, setPasscode] = useState('');
   const [passcodeError, setPasscodeError] = useState(false);
+
+  const { data: settings = [] } = useQuery({
+    queryKey: ['host-password-setting'],
+    queryFn: () => base44.entities.AppSettings.filter({ key: 'host_password' }),
+  });
+  const hostPassword = settings[0]?.value || 'cesurtheman';
   const [form, setForm] = useState({
     title: '',
     date: '',
@@ -66,7 +71,7 @@ export default function CreateGame() {
             onChange={(e) => { setPasscode(e.target.value); setPasscodeError(false); }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                if (passcode === HOST_PASSWORD) setUnlocked(true);
+                if (passcode === hostPassword) setUnlocked(true);
                 else setPasscodeError(true);
               }
             }}
@@ -77,7 +82,7 @@ export default function CreateGame() {
           <Button
             className="w-full h-12 font-heading tracking-wider text-lg"
             onClick={() => {
-              if (passcode === HOST_PASSWORD) setUnlocked(true);
+              if (passcode === hostPassword) setUnlocked(true);
               else setPasscodeError(true);
             }}
           >

@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ClubSearch from '@/components/clubs/ClubSearch';
-import { Camera, Trophy, Target, Handshake, Gamepad2, Save, LogOut, Loader2 } from 'lucide-react';
+import { Camera, Trophy, Target, Handshake, Gamepad2, Save, LogOut, Loader2, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 export default function Profile() {
@@ -136,6 +137,14 @@ export default function Profile() {
         <Button onClick={handleSave} className="w-full h-12 font-heading tracking-wider text-lg" disabled={saving}>
           {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-4 h-4 mr-2" /> SAVE PROFILE</>}
         </Button>
+
+        {user?.role === 'admin' && (
+          <Link to="/admin">
+            <Button variant="outline" className="w-full border-primary/30 text-primary">
+              <ShieldCheck className="w-4 h-4 mr-2" /> Admin Settings
+            </Button>
+          </Link>
+        )}
 
         <Button variant="outline" className="w-full" onClick={() => base44.auth.logout()}>
           <LogOut className="w-4 h-4 mr-2" /> Sign Out

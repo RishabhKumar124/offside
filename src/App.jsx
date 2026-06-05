@@ -20,6 +20,7 @@ import Profile from '@/pages/Profile';
 import PlayerProfile from '@/pages/PlayerProfile';
 import Notifications from '@/pages/Notifications';
 import Leaderboard from '@/pages/Leaderboard';
+import AdminSettings from '@/pages/AdminSettings';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -60,6 +61,7 @@ const AuthenticatedApp = () => {
           <Route path="/player/:userId" element={<PlayerProfile />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/admin" element={<AdminSettings />} />
         </Route>
       </Route>
 
