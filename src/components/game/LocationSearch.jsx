@@ -22,7 +22,7 @@ export default function LocationSearch({ value, onChange }) {
       setLoading(true);
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`,
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`,
           { headers: { 'Accept-Language': 'en' } }
         );
         const data = await res.json();
@@ -48,9 +48,10 @@ export default function LocationSearch({ value, onChange }) {
   }, []);
 
   const handleSelect = (place) => {
-    // Show just the first 2 meaningful parts: "Danehy Park, Cambridge"
-    const parts = place.display_name.split(', ');
-    const short = parts.slice(0, 2).join(', ');
+    // Use structured address data from Nominatim: name + city/town/village
+    const name = place.name || place.display_name.split(', ')[0];
+    const city = place.address?.city || place.address?.town || place.address?.village || place.address?.county || '';
+    const short = city ? `${name}, ${city}` : name;
     setQuery(short);
     setOpen(false);
     onChange(short);
