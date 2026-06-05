@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import CommentSection from '@/components/game/CommentSection';
 import TeamBuilder from '@/components/game/TeamBuilder';
+import MOTMVoting from '@/components/game/MOTMVoting';
 
 export default function GameDetail() {
   const { id } = useParams();
@@ -490,9 +491,12 @@ export default function GameDetail() {
         </TabsContent>
       </Tabs>
 
-      {/* Player stat submission for completed games */}
+      {/* Player stat submission + MOTM voting for completed games */}
       {user && game.status === 'completed' && !isHost && goingRsvps.some(r => r.user_id === user.id) && (
-        <PlayerStatSubmission gameId={id} userId={user.id} userName={user.full_name} stats={stats} />
+        <>
+          <PlayerStatSubmission gameId={id} userId={user.id} userName={user.full_name} stats={stats} />
+          <MOTMVoting gameId={id} userId={user.id} goingRsvps={goingRsvps} />
+        </>
       )}
     </div>
   );
@@ -565,6 +569,16 @@ function HostPostGame({ game, gameId, stats, goingRsvps }) {
   const [darkScore, setDarkScore] = useState(game.dark_score || 0);
   const [whiteScore, setWhiteScore] = useState(game.white_score || 0);
   const [mvpId, setMvpId] = useState(game.mvp_user_id || '');
+
+  const { data: motmVotes = [] } = useQuery({
+    queryKey: ['motm-votes', gameId],
+    queryFn: () => base44.entities.MOTMVote.filter({ game_id: gameId }),
+  });
+
+  const voteTally = motmVotes.reduce((acc, v) => {
+    acc[v.voted_for_id] = (acc[v.voted_for_id] || 0) + 1;
+    return acc;
+  }, {});
 
   const saveScoreMutation = useMutation({
     mutationFn: async () => {
@@ -646,9 +660,16 @@ function HostPostGame({ game, gameId, stats, goingRsvps }) {
             <Select value={mvpId} onValueChange={setMvpId}>
               <SelectTrigger><SelectValue placeholder="Select MVP" /></SelectTrigger>
               <SelectContent>
-                {goingRsvps.map(r => (
-                  <SelectItem key={r.user_id} value={r.user_id}>{r.user_name}</SelectItem>
-                ))}
+                {goingRsvps
+                  .sort((a, b) => (voteTally[b.user_id] || 0) - (voteTally[a.user_id] || 0))
+                  .map(r => {
+                    const voteCount = voteTally[r.user_id] || 0;
+                    return (
+                      <SelectItem key={r.user_id} value={r.user_id}>
+                        {r.user_name}{voteCount > 0 ? ` ⭐ ${voteCount} vote${voteCount !== 1 ? 's' : ''}` : ''}
+                      </SelectItem>
+                    );
+                  })}
               </SelectContent>
             </Select>
           </div>
