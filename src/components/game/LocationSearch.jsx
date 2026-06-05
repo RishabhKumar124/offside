@@ -48,9 +48,12 @@ export default function LocationSearch({ value, onChange }) {
   }, []);
 
   const handleSelect = (place) => {
-    setQuery(place.display_name);
+    // Show just the first 2 meaningful parts: "Danehy Park, Cambridge"
+    const parts = place.display_name.split(', ');
+    const short = parts.slice(0, 2).join(', ');
+    setQuery(short);
     setOpen(false);
-    onChange(place.display_name);
+    onChange(short);
   };
 
   const handleChange = (e) => {
