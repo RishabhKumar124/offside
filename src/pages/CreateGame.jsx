@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import LocationPicker from '@/components/game/LocationPicker';
+import LocationSearch from '@/components/game/LocationSearch';
 import { CalendarDays, Users, Trophy, Loader2, Lock, ShieldCheck } from 'lucide-react';
 
 export default function CreateGame() {
@@ -146,12 +146,9 @@ export default function CreateGame() {
             <CardTitle className="text-lg">Location</CardTitle>
           </CardHeader>
           <CardContent>
-            <LocationPicker
-              lat={form.location_lat}
-              lng={form.location_lng}
-              locationName={form.location_name}
-              onLocationChange={(lat, lng) => setForm({...form, location_lat: lat, location_lng: lng})}
-              onNameChange={(name) => setForm({...form, location_name: name})}
+            <LocationSearch
+              value={form.location_name}
+              onChange={(name) => setForm({...form, location_name: name})}
             />
           </CardContent>
         </Card>
