@@ -1,85 +1,88 @@
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
-import { Input } from '@/components/ui/input';
 import { MapPin } from 'lucide-react';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-// Fix default marker icon
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-
-function MapClickHandler({ onLocationSelect }) {
-  useMapEvents({
-    click(e) {
-      onLocationSelect(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
-
-// Flies to coordinates when they change
-function MapFlyTo({ lat, lng }) {
-  const map = useMap();
-  useEffect(() => {
-    if (lat && lng) {
-      map.flyTo([lat, lng], map.getZoom());
-    }
-  }, [lat, lng, map]);
-  return null;
-}
+import { Input } from '@/components/ui/input';
 
 export default function LocationPicker({ lat, lng, locationName, onLocationChange, onNameChange, readOnly = false }) {
-  const defaultCenter = [40.7128, -74.006]; // New York as default
-  const center = lat && lng ? [lat, lng] : defaultCenter;
+
+  const handleMapClick = (e) => {
+    if (readOnly) return;
+    // When user clicks, we use a search-based approach via the name input
+  };
+
+  // Build Google Maps embed URL
+  const mapSrc = lat && lng
+    ? `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`
+    : locationName
+      ? `https://maps.google.com/maps?q=${encodeURIComponent(locationName)}&z=14&output=embed`
+      : null;
 
   return (
     <div className="space-y-3">
       {!readOnly && (
-        <div className="relative">
-          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Enter venue name..."
-            value={locationName || ''}
-            onChange={(e) => onNameChange?.(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+        <>
+          <div className="relative">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Enter venue name or address..."
+              value={locationName || ''}
+              onChange={(e) => onNameChange?.(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="relative">
+              <Input
+                type="number"
+                step="any"
+                placeholder="Latitude (optional)"
+                value={lat || ''}
+                onChange={(e) => onLocationChange?.(parseFloat(e.target.value) || null, lng)}
+                className="text-xs"
+              />
+            </div>
+            <div className="relative">
+              <Input
+                type="number"
+                step="any"
+                placeholder="Longitude (optional)"
+                value={lng || ''}
+                onChange={(e) => onLocationChange?.(lat, parseFloat(e.target.value) || null)}
+                className="text-xs"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">📍 Enter a venue name — the map preview will update automatically</p>
+        </>
       )}
+
       {readOnly && locationName && (
         <div className="flex items-center gap-2 text-sm font-medium">
           <MapPin className="w-4 h-4 text-primary" />
           {locationName}
         </div>
       )}
-      <div className="rounded-xl overflow-hidden border h-[200px] md:h-[280px]">
-        <MapContainer
-          center={center}
-          zoom={13}
-          className="h-full w-full"
-          scrollWheelZoom={false}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+
+      {mapSrc && (
+        <div className="rounded-xl overflow-hidden border h-[200px] md:h-[280px]">
+          <iframe
+            src={mapSrc}
+            width="100%"
+            height="100%"
+            style={{ border: 0 }}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            title="Game location map"
           />
-          {!readOnly && (
-            <MapClickHandler onLocationSelect={(la, ln) => onLocationChange?.(la, ln)} />
-          )}
-          {lat && lng && (
-            <>
-              <Marker position={[lat, lng]} />
-              <MapFlyTo lat={lat} lng={lng} />
-            </>
-          )}
-        </MapContainer>
-      </div>
-      {!readOnly && (
-        <p className="text-xs text-muted-foreground">📍 Click on the map to pin the game location</p>
+        </div>
+      )}
+
+      {!mapSrc && !readOnly && (
+        <div className="rounded-xl border h-[200px] bg-muted/30 flex items-center justify-center">
+          <div className="text-center text-muted-foreground">
+            <MapPin className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">Enter a venue name to see the map</p>
+          </div>
+        </div>
       )}
     </div>
   );

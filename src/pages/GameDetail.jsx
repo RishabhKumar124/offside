@@ -12,8 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   MapPin, Calendar, Clock, Users, Shield, CheckCircle, XCircle,
-  Loader2, Trophy, UserPlus, UserMinus, Star, ArrowLeft
+  Loader2, Trophy, UserPlus, UserMinus, Star, ArrowLeft, Pencil, X
 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import LocationPicker from '@/components/game/LocationPicker';
 import CommentSection from '@/components/game/CommentSection';
@@ -22,6 +23,8 @@ import TeamBuilder from '@/components/game/TeamBuilder';
 export default function GameDetail() {
   const { id } = useParams();
   const [user, setUser] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -50,7 +53,8 @@ export default function GameDetail() {
   const goingRsvps = rsvps.filter(r => r.status === 'going');
   const waitlistRsvps = rsvps.filter(r => r.status === 'waitlist');
   const userRsvp = rsvps.find(r => r.user_id === user?.id);
-  const isHost = game?.host_id === user?.id;
+  const isHost = game?.host_id === user?.id || user?.role === 'admin';
+
   const isFull = goingRsvps.length >= (game?.max_players || 0);
 
   const rsvpMutation = useMutation({
@@ -92,6 +96,29 @@ export default function GameDetail() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rsvps', id] }),
   });
+
+  const editGameMutation = useMutation({
+    mutationFn: async () => {
+      await base44.entities.Game.update(id, editForm);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['game', id] });
+      setEditMode(false);
+    },
+  });
+
+  const openEdit = () => {
+    setEditForm({
+      title: game.title,
+      date: game.date ? new Date(game.date).toISOString().slice(0, 16) : '',
+      location_name: game.location_name,
+      location_lat: game.location_lat,
+      location_lng: game.location_lng,
+      max_players: game.max_players,
+      rules: game.rules || '',
+    });
+    setEditMode(true);
+  };
 
   const completeGameMutation = useMutation({
     mutationFn: async () => {
@@ -152,7 +179,14 @@ export default function GameDetail() {
         <Badge variant="outline" className="mb-2 text-xs">
           {game.status === 'in_progress' ? '🔴 Live' : game.status}
         </Badge>
-        <h1 className="font-display text-4xl md:text-5xl tracking-wider">{game.title}</h1>
+        <div className="flex items-start justify-between gap-2">
+          <h1 className="font-display text-4xl md:text-5xl tracking-wider">{game.title}</h1>
+          {isHost && !editMode && (
+            <Button variant="ghost" size="icon" onClick={openEdit} className="mt-1 shrink-0">
+              <Pencil className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-3 mt-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -173,6 +207,46 @@ export default function GameDetail() {
           </div>
         </div>
       </div>
+
+      {/* Edit Form */}
+      {editMode && editForm && (
+        <Card className="mb-6 border-primary/30">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Edit Game</CardTitle>
+            <Button variant="ghost" size="icon" onClick={() => setEditMode(false)}>
+              <X className="w-4 h-4" />
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label>Title</Label>
+              <Input value={editForm.title} onChange={(e) => setEditForm({...editForm, title: e.target.value})} />
+            </div>
+            <div>
+              <Label>Date & Time</Label>
+              <Input type="datetime-local" value={editForm.date} onChange={(e) => setEditForm({...editForm, date: e.target.value})} />
+            </div>
+            <div>
+              <Label>Max Players</Label>
+              <Input type="number" min={2} max={50} value={editForm.max_players} onChange={(e) => setEditForm({...editForm, max_players: parseInt(e.target.value)})} />
+            </div>
+            <div>
+              <Label>Venue Name</Label>
+              <Input value={editForm.location_name || ''} onChange={(e) => setEditForm({...editForm, location_name: e.target.value})} placeholder="Venue name or address..." />
+            </div>
+            <div>
+              <Label>Rules & Notes</Label>
+              <Textarea value={editForm.rules} onChange={(e) => setEditForm({...editForm, rules: e.target.value})} className="min-h-[80px]" />
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={() => editGameMutation.mutate()} disabled={editGameMutation.isPending}>
+                {editGameMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
+              </Button>
+              <Button variant="outline" onClick={() => setEditMode(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* RSVP Button */}
       {user && game.status === 'upcoming' && (
