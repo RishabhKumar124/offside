@@ -1,0 +1,45 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "user",
+        "host"
+      ],
+      "default": "user"
+    },
+    "birthday": {
+      "type": "string",
+      "format": "date"
+    },
+    "profile_photo": {
+      "type": "string",
+      "description": "Profile photo URL"
+    },
+    "about_me": {
+      "type": "string"
+    },
+    "favourite_club": {
+      "type": "string"
+    },
+    "total_goals": {
+      "type": "number",
+      "default": 0
+    },
+    "total_assists": {
+      "type": "number",
+      "default": 0
+    },
+    "total_mvps": {
+      "type": "number",
+      "default": 0
+    },
+    "games_played": {
+      "type": "number",
+      "default": 0
+    }
+  }
+}

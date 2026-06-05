@@ -1,0 +1,37 @@
+{
+  "name": "RSVP",
+  "type": "object",
+  "properties": {
+    "game_id": {
+      "type": "string",
+      "description": "Game ID"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "User ID"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "User display name"
+    },
+    "user_photo": {
+      "type": "string",
+      "description": "User profile photo"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "going",
+        "waitlist",
+        "declined",
+        "removed"
+      ],
+      "default": "going"
+    }
+  },
+  "required": [
+    "game_id",
+    "user_id",
+    "status"
+  ]
+}
