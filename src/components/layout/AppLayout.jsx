@@ -43,7 +43,7 @@ export default function AppLayout() {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <span className="text-primary-foreground font-display text-lg">⚽</span>
           </div>
-          <span className="font-display text-2xl tracking-wider text-foreground">KICKOFF</span>
+          <span className="font-display text-2xl tracking-wider text-foreground">OFFSIDE</span>
         </Link>
         <div className="flex items-center gap-1">
           {navItems.map(item => (

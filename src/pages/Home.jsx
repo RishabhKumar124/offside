@@ -33,7 +33,7 @@ export default function Home() {
       {/* Hero */}
       <div className="text-center mb-8">
         <h1 className="font-display text-5xl md:text-6xl tracking-wider text-foreground">
-          KICK<span className="text-primary">OFF</span>
+          OFF<span className="text-primary">SIDE</span>
         </h1>
         <p className="text-muted-foreground mt-2 text-sm">Find your next game. Show your skills.</p>
       </div>
