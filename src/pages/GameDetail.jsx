@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import CommentSection from '@/components/game/CommentSection';
 import TeamBuilder from '@/components/game/TeamBuilder';
 import MOTMVoting from '@/components/game/MOTMVoting';
+import PostGameDashboard from '@/components/game/PostGameDashboard';
 
 export default function GameDetail() {
   const { id } = useParams();
@@ -276,25 +277,11 @@ export default function GameDetail() {
         </div>
       )}
 
-      {/* Scores for completed */}
-      {game.status === 'completed' && game.dark_score != null && (
-        <Card className="mb-6 overflow-hidden">
-          <div className="bg-gradient-to-r from-foreground/5 to-background p-6 text-center">
-            <p className="text-xs text-muted-foreground mb-2 uppercase tracking-widest">Final Score</p>
-            <div className="flex items-center justify-center gap-6 font-display text-5xl">
-              <span>⚫ {game.dark_score}</span>
-              <span className="text-muted-foreground text-3xl">-</span>
-              <span>⚪ {game.white_score}</span>
-            </div>
-            {game.mvp_name && (
-              <div className="mt-3">
-                <Badge className="bg-chart-3/10 text-chart-3 border-chart-3/20">
-                  <Star className="w-3 h-3 mr-1 fill-chart-3" /> MVP: {game.mvp_name}
-                </Badge>
-              </div>
-            )}
-          </div>
-        </Card>
+      {/* Post-game dashboard — shown once MVP is declared */}
+      {game.status === 'completed' && game.mvp_name && (
+        <div className="mb-6">
+          <PostGameDashboard game={game} gameId={id} isHost={isHost} />
+        </div>
       )}
 
       {/* Host Controls */}
