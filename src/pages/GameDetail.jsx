@@ -277,8 +277,8 @@ export default function GameDetail() {
         </div>
       )}
 
-      {/* Post-game dashboard — shown once MVP is declared */}
-      {game.status === 'completed' && game.mvp_name && (
+      {/* Post-game dashboard — always shown for completed games */}
+      {game.status === 'completed' && (
         <div className="mb-6">
           <PostGameDashboard game={game} gameId={id} isHost={isHost} />
         </div>
@@ -301,8 +301,9 @@ export default function GameDetail() {
       {/* Host - Score + MVP + Stats for completed games */}
       {isHost && game.status === 'completed' && <HostPostGame game={game} gameId={id} stats={stats} goingRsvps={goingRsvps} />}
 
-      {/* Tabs */}
-      <Tabs defaultValue="details" className="mt-6">
+      {/* Tabs — hidden for completed games */}
+      {game.status === 'completed' ? null : <></>}
+      <Tabs defaultValue="details" className={`mt-6 ${game.status === 'completed' ? 'hidden' : ''}`}>
         <TabsList className={`w-full grid ${isHost ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
@@ -478,8 +479,8 @@ export default function GameDetail() {
         </TabsContent>
       </Tabs>
 
-      {/* Player stat submission + MOTM voting for completed games */}
-      {user && game.status === 'completed' && !isHost && goingRsvps.some(r => r.user_id === user.id) && (
+      {/* Player stat submission + MOTM voting for completed games (before MVP is set) */}
+      {user && game.status === 'completed' && !game.mvp_name && !isHost && goingRsvps.some(r => r.user_id === user.id) && (
         <>
           <PlayerStatSubmission gameId={id} userId={user.id} userName={user.full_name} stats={stats} />
           <MOTMVoting gameId={id} userId={user.id} goingRsvps={goingRsvps} />
