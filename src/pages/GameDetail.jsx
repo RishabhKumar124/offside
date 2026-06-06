@@ -7,25 +7,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  MapPin, Calendar, Clock, Users, Shield, CheckCircle, XCircle,
-  Loader2, Trophy, UserPlus, UserMinus, Star, ArrowLeft, Pencil, X, Crown
+  MapPin, Calendar, Clock, Users, Shield, CheckCircle,
+  Loader2, UserPlus, UserMinus, ArrowLeft
 } from 'lucide-react';
-import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import CommentSection from '@/components/game/CommentSection';
-import TeamBuilder from '@/components/game/TeamBuilder';
 import MOTMVoting from '@/components/game/MOTMVoting';
 import PostGameDashboard from '@/components/game/PostGameDashboard';
+import HostAdminPanel from '@/components/game/HostAdminPanel';
 
 export default function GameDetail() {
   const { id } = useParams();
   const [user, setUser] = useState(null);
-  const [editMode, setEditMode] = useState(false);
-  const [editForm, setEditForm] = useState(null);
+
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -98,45 +96,7 @@ export default function GameDetail() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rsvps', id] }),
   });
 
-  const editGameMutation = useMutation({
-    mutationFn: async () => {
-      await base44.entities.Game.update(id, editForm);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['game', id] });
-      setEditMode(false);
-    },
-  });
 
-  const openEdit = () => {
-    setEditForm({
-      title: game.title,
-      date: game.date ? new Date(game.date).toISOString().slice(0, 16) : '',
-      location_name: game.location_name,
-      location_lat: game.location_lat,
-      location_lng: game.location_lng,
-      max_players: game.max_players,
-      rules: game.rules || '',
-    });
-    setEditMode(true);
-  };
-
-  const completeGameMutation = useMutation({
-    mutationFn: async () => {
-      await base44.entities.Game.update(id, { status: 'completed' });
-      // Notify all going players to submit stats
-      for (const rsvp of goingRsvps) {
-        await base44.entities.Notification.create({
-          user_id: rsvp.user_id,
-          type: 'submit_stats',
-          title: 'Game Over! Submit Your Stats',
-          message: `"${game.title}" has ended. Submit your goals and assists!`,
-          game_id: id,
-        });
-      }
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', id] }),
-  });
 
   const saveTeamsMutation = useMutation({
     mutationFn: async ({ dark, white }) => {
@@ -161,6 +121,9 @@ export default function GameDetail() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', id] }),
   });
 
+  const handleSaveTeams = (dark, white) => saveTeamsMutation.mutate({ dark, white });
+  const handleAnnounceTeams = () => announceTeamsMutation.mutate();
+
   if (isLoading || !game) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -182,11 +145,6 @@ export default function GameDetail() {
         </Badge>
         <div className="flex items-start justify-between gap-2">
           <h1 className="font-display text-4xl md:text-5xl tracking-wider">{game.title}</h1>
-          {isHost && !editMode && (
-            <Button variant="ghost" size="icon" onClick={openEdit} className="mt-1 shrink-0">
-              <Pencil className="w-4 h-4" />
-            </Button>
-          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-4">
@@ -209,45 +167,7 @@ export default function GameDetail() {
         </div>
       </div>
 
-      {/* Edit Form */}
-      {editMode && editForm && (
-        <Card className="mb-6 border-primary/30">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Edit Game</CardTitle>
-            <Button variant="ghost" size="icon" onClick={() => setEditMode(false)}>
-              <X className="w-4 h-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Title</Label>
-              <Input value={editForm.title} onChange={(e) => setEditForm({...editForm, title: e.target.value})} />
-            </div>
-            <div>
-              <Label>Date & Time</Label>
-              <Input type="datetime-local" value={editForm.date} onChange={(e) => setEditForm({...editForm, date: e.target.value})} />
-            </div>
-            <div>
-              <Label>Max Players</Label>
-              <Input type="number" min={2} max={50} value={editForm.max_players} onChange={(e) => setEditForm({...editForm, max_players: parseInt(e.target.value)})} />
-            </div>
-            <div>
-              <Label>Venue Name</Label>
-              <Input value={editForm.location_name || ''} onChange={(e) => setEditForm({...editForm, location_name: e.target.value})} placeholder="Venue name or address..." />
-            </div>
-            <div>
-              <Label>Rules & Notes</Label>
-              <Textarea value={editForm.rules} onChange={(e) => setEditForm({...editForm, rules: e.target.value})} className="min-h-[80px]" />
-            </div>
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={() => editGameMutation.mutate()} disabled={editGameMutation.isPending}>
-                {editGameMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
-              </Button>
-              <Button variant="outline" onClick={() => setEditMode(false)}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
 
       {/* RSVP Button */}
       {user && game.status === 'upcoming' && !isHost && (
@@ -284,30 +204,24 @@ export default function GameDetail() {
         </div>
       )}
 
-      {/* Host Controls */}
-      {isHost && game.status === 'upcoming' && (
-        <Card className="mb-6 border-primary/20 bg-primary/5">
-          <CardContent className="p-4">
-            <p className="text-sm font-medium mb-3">Host Controls</p>
-            <div className="flex gap-2">
-              <Button onClick={() => completeGameMutation.mutate()} variant="outline" size="sm">
-                <CheckCircle className="w-4 h-4 mr-1" /> End Game
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Host Admin Panel */}
+      {isHost && (
+        <HostAdminPanel
+          game={game}
+          gameId={id}
+          rsvps={rsvps}
+          stats={stats}
+          user={user}
+          onSaveTeams={handleSaveTeams}
+          onAnnounceTeams={handleAnnounceTeams}
+        />
       )}
 
-      {/* Host - Score + MVP + Stats for completed games */}
-      {isHost && game.status === 'completed' && <HostPostGame game={game} gameId={id} stats={stats} goingRsvps={goingRsvps} />}
-
       {/* Tabs — hidden for completed games */}
-      {game.status === 'completed' ? null : <></>}
       <Tabs defaultValue="details" className={`mt-6 ${game.status === 'completed' ? 'hidden' : ''}`}>
-        <TabsList className={`w-full grid ${isHost ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        <TabsList className="w-full grid grid-cols-3">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="players">Players</TabsTrigger>
-          {isHost && <TabsTrigger value="teams">Teams</TabsTrigger>}
           <TabsTrigger value="chat">Chat</TabsTrigger>
         </TabsList>
 
@@ -418,12 +332,7 @@ export default function GameDetail() {
                       )}
                       <span className="text-sm font-medium truncate">{r.user_name}</span>
                     </Link>
-                    {isHost && r.user_id !== user?.id && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <MakeOrganizerButton rsvp={r} game={game} gameId={id} />
-                        <RemovePlayerButton rsvp={r} gameId={id} />
-                      </div>
-                    )}
+
                   </div>
                 ))}
                 {goingRsvps.length === 0 && <p className="text-sm text-muted-foreground">No one has joined yet.</p>}
@@ -451,9 +360,7 @@ export default function GameDetail() {
                         </div>
                       )}
                       <span className="text-sm">{r.user_name}</span>
-                      {isHost && (
-                        <AcceptWaitlistButton rsvp={r} gameId={id} game={game} />
-                      )}
+
                     </div>
                   ))}
                 </div>
@@ -461,18 +368,6 @@ export default function GameDetail() {
             </Card>
           )}
         </TabsContent>
-
-        {isHost && (
-          <TabsContent value="teams" className="mt-4">
-            <TeamBuilder
-              game={game}
-              rsvps={rsvps}
-              isHost={isHost}
-              onSaveTeams={(dark, white) => saveTeamsMutation.mutate({ dark, white })}
-              onAnnounceTeams={() => announceTeamsMutation.mutate()}
-            />
-          </TabsContent>
-        )}
 
         <TabsContent value="chat" className="mt-4">
           <CommentSection gameId={id} user={user} />
@@ -490,211 +385,7 @@ export default function GameDetail() {
   );
 }
 
-function MakeOrganizerButton({ rsvp, game, gameId }) {
-  const queryClient = useQueryClient();
-  const isAlreadyOrganizer = game.host_id === rsvp.user_id;
-  const mutation = useMutation({
-    mutationFn: async () => {
-      await base44.entities.Game.update(gameId, {
-        host_id: rsvp.user_id,
-        host_name: rsvp.user_name,
-        host_photo: rsvp.user_photo || '',
-      });
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', gameId] }),
-  });
-  if (isAlreadyOrganizer) return null;
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      title="Make organizer"
-      onClick={(e) => { e.preventDefault(); mutation.mutate(); }}
-      className="text-chart-3 hover:text-chart-3"
-    >
-      <Crown className="w-3.5 h-3.5" />
-    </Button>
-  );
-}
 
-function RemovePlayerButton({ rsvp, gameId }) {
-  const queryClient = useQueryClient();
-  const mutation = useMutation({
-    mutationFn: () => base44.entities.RSVP.update(rsvp.id, { status: 'removed' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rsvps', gameId] }),
-  });
-  return (
-    <Button variant="ghost" size="sm" onClick={(e) => { e.preventDefault(); mutation.mutate(); }} className="ml-auto text-destructive">
-      <XCircle className="w-3.5 h-3.5" />
-    </Button>
-  );
-}
-
-function AcceptWaitlistButton({ rsvp, gameId, game }) {
-  const queryClient = useQueryClient();
-  const mutation = useMutation({
-    mutationFn: async () => {
-      await base44.entities.RSVP.update(rsvp.id, { status: 'going' });
-      await base44.entities.Notification.create({
-        user_id: rsvp.user_id,
-        type: 'rsvp_accepted',
-        title: 'You\'re in!',
-        message: `You've been accepted into "${game.title}"!`,
-        game_id: gameId,
-      });
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rsvps', gameId] }),
-  });
-  return (
-    <Button variant="outline" size="sm" onClick={(e) => { e.preventDefault(); mutation.mutate(); }} className="ml-auto text-primary">
-      <CheckCircle className="w-3.5 h-3.5 mr-1" /> Accept
-    </Button>
-  );
-}
-
-function HostPostGame({ game, gameId, stats, goingRsvps }) {
-  const queryClient = useQueryClient();
-  const [darkScore, setDarkScore] = useState(game.dark_score || 0);
-  const [whiteScore, setWhiteScore] = useState(game.white_score || 0);
-  const [mvpId, setMvpId] = useState(game.mvp_user_id || '');
-
-  const { data: motmVotes = [] } = useQuery({
-    queryKey: ['motm-votes', gameId],
-    queryFn: () => base44.entities.MOTMVote.filter({ game_id: gameId }),
-  });
-
-  const voteTally = motmVotes.reduce((acc, v) => {
-    acc[v.voted_for_id] = (acc[v.voted_for_id] || 0) + 1;
-    return acc;
-  }, {});
-
-  const saveScoreMutation = useMutation({
-    mutationFn: async () => {
-      const mvpPlayer = goingRsvps.find(r => r.user_id === mvpId);
-      await base44.entities.Game.update(gameId, {
-        dark_score: parseInt(darkScore),
-        white_score: parseInt(whiteScore),
-        mvp_user_id: mvpId,
-        mvp_name: mvpPlayer?.user_name || '',
-      });
-      if (mvpId) {
-        await base44.entities.Notification.create({
-          user_id: mvpId,
-          type: 'mvp_awarded',
-          title: '🏆 You are the MVP!',
-          message: `You were selected as the MVP for "${game.title}"!`,
-          game_id: gameId,
-        });
-        // Update user's MVP count
-        const users = await base44.entities.User.filter({ id: mvpId });
-        if (users.length > 0) {
-          await base44.entities.User.update(mvpId, { total_mvps: (users[0].total_mvps || 0) + 1 });
-        }
-      }
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', gameId] }),
-  });
-
-  const approveStatMutation = useMutation({
-    mutationFn: async (stat) => {
-      await base44.entities.StatSubmission.update(stat.id, { status: 'approved' });
-      // Update user career stats
-      const users = await base44.entities.User.filter({ id: stat.user_id });
-      if (users.length > 0) {
-        const u = users[0];
-        await base44.entities.User.update(stat.user_id, {
-          total_goals: (u.total_goals || 0) + (stat.goals || 0),
-          total_assists: (u.total_assists || 0) + (stat.assists || 0),
-          games_played: (u.games_played || 0) + 1,
-        });
-      }
-      await base44.entities.Notification.create({
-        user_id: stat.user_id,
-        type: 'stats_approved',
-        title: 'Stats Approved!',
-        message: `Your stats for "${game.title}" have been approved.`,
-        game_id: gameId,
-      });
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stats', gameId] }),
-  });
-
-  const rejectStatMutation = useMutation({
-    mutationFn: (stat) => base44.entities.StatSubmission.update(stat.id, { status: 'rejected' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stats', gameId] }),
-  });
-
-  const pendingStats = stats.filter(s => s.status === 'pending');
-
-  return (
-    <div className="space-y-4 mb-6">
-      <Card className="border-primary/20">
-        <CardHeader>
-          <CardTitle className="text-sm">Set Final Score & MVP</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>⚫ Dark Team Score</Label>
-              <Input type="number" min={0} value={darkScore} onChange={(e) => setDarkScore(e.target.value)} />
-            </div>
-            <div>
-              <Label>⚪ White Team Score</Label>
-              <Input type="number" min={0} value={whiteScore} onChange={(e) => setWhiteScore(e.target.value)} />
-            </div>
-          </div>
-          <div>
-            <Label>🏆 MVP</Label>
-            <Select value={mvpId} onValueChange={setMvpId}>
-              <SelectTrigger><SelectValue placeholder="Select MVP" /></SelectTrigger>
-              <SelectContent>
-                {goingRsvps
-                  .sort((a, b) => (voteTally[b.user_id] || 0) - (voteTally[a.user_id] || 0))
-                  .map(r => {
-                    const voteCount = voteTally[r.user_id] || 0;
-                    return (
-                      <SelectItem key={r.user_id} value={r.user_id}>
-                        {r.user_name}{voteCount > 0 ? ` ⭐ ${voteCount} vote${voteCount !== 1 ? 's' : ''}` : ''}
-                      </SelectItem>
-                    );
-                  })}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={() => saveScoreMutation.mutate()} className="w-full">
-            <Trophy className="w-4 h-4 mr-2" /> Save Score & MVP
-          </Button>
-        </CardContent>
-      </Card>
-
-      {pendingStats.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Pending Stat Approvals</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {pendingStats.map(stat => (
-              <div key={stat.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div>
-                  <p className="text-sm font-medium">{stat.user_name}</p>
-                  <p className="text-xs text-muted-foreground">⚽ {stat.goals} goals · 🅰️ {stat.assists} assists</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => approveStatMutation.mutate(stat)}>
-                    <CheckCircle className="w-3.5 h-3.5 text-primary" />
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => rejectStatMutation.mutate(stat)}>
-                    <XCircle className="w-3.5 h-3.5 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
 
 function PlayerStatSubmission({ gameId, userId, userName, stats }) {
   const queryClient = useQueryClient();
