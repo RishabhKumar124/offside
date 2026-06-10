@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { appClient } from "@/api/backendClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
 
@@ -28,7 +29,7 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await base44.auth.register({ email, password });
+      await appClient.auth.register({ email, password });
       setShowOtp(true);
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -41,9 +42,9 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
+      const result = await appClient.auth.verifyOtp({ email, otpCode });
       if (result?.access_token) {
-        base44.auth.setToken(result.access_token);
+        appClient.auth.setToken(result.access_token);
       }
       window.location.href = "/";
     } catch (err) {
@@ -56,7 +57,7 @@ export default function Register() {
   const handleResend = async () => {
     setError("");
     try {
-      await base44.auth.resendOtp(email);
+      await appClient.auth.resendOtp(email);
       toast({
         title: "Code sent",
         description: "Check your email for the new code.",
@@ -66,8 +67,15 @@ export default function Register() {
     }
   };
 
-  const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", "/");
+  const handleGoogle = async () => {
+    setError("");
+    setGoogleLoading(true);
+    try {
+      await appClient.auth.loginWithProvider("google", "/");
+    } catch (err) {
+      setError(err.message || "Google sign-up failed");
+      setGoogleLoading(false);
+    }
   };
 
   if (showOtp) {
@@ -129,6 +137,8 @@ export default function Register() {
       icon={UserPlus}
       title="Create your account"
       subtitle="Sign up to get started"
+      showBack
+      backTo="/login"
       footer={
         <>
           Already have an account?{" "}
@@ -142,9 +152,14 @@ export default function Register() {
         variant="outline"
         className="w-full h-12 text-sm font-medium mb-6"
         onClick={handleGoogle}
+        disabled={loading || googleLoading}
       >
-        <GoogleIcon className="w-5 h-5 mr-2" />
-        Continue with Google
+        {googleLoading ? (
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        ) : (
+          <GoogleIcon className="w-5 h-5 mr-2" />
+        )}
+        {googleLoading ? "Opening Google..." : "Continue with Google"}
       </Button>
 
       <div className="relative mb-6">

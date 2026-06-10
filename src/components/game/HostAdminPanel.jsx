@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,7 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
 
   const { data: motmVotes = [] } = useQuery({
     queryKey: ['motm-votes', gameId],
-    queryFn: () => base44.entities.MOTMVote.filter({ game_id: gameId }),
+    queryFn: () => appClient.entities.MOTMVote.filter({ game_id: gameId }),
     enabled: game.status === 'completed',
   });
 
@@ -49,15 +49,15 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
 
   // Mutations
   const editMutation = useMutation({
-    mutationFn: () => base44.entities.Game.update(gameId, editForm),
+    mutationFn: () => appClient.entities.Game.update(gameId, editForm),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', gameId] }),
   });
 
   const endGameMutation = useMutation({
     mutationFn: async () => {
-      await base44.entities.Game.update(gameId, { status: 'completed' });
+      await appClient.entities.Game.update(gameId, { status: 'completed' });
       for (const rsvp of goingRsvps) {
-        await base44.entities.Notification.create({
+        await appClient.entities.Notification.create({
           user_id: rsvp.user_id,
           type: 'submit_stats',
           title: 'Game Over! Submit Your Stats',
@@ -72,23 +72,23 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
   const saveScoreMutation = useMutation({
     mutationFn: async () => {
       const mvpPlayer = goingRsvps.find(r => r.user_id === mvpId);
-      await base44.entities.Game.update(gameId, {
+      await appClient.entities.Game.update(gameId, {
         dark_score: parseInt(darkScore),
         white_score: parseInt(whiteScore),
         mvp_user_id: mvpId,
         mvp_name: mvpPlayer?.user_name || '',
       });
       if (mvpId) {
-        await base44.entities.Notification.create({
+        await appClient.entities.Notification.create({
           user_id: mvpId,
           type: 'mvp_awarded',
           title: '🏆 You are the MVP!',
           message: `You were selected as the MVP for "${game.title}"!`,
           game_id: gameId,
         });
-        const users = await base44.entities.User.filter({ id: mvpId });
+        const users = await appClient.entities.User.filter({ id: mvpId });
         if (users.length > 0) {
-          await base44.entities.User.update(mvpId, { total_mvps: (users[0].total_mvps || 0) + 1 });
+          await appClient.entities.User.update(mvpId, { total_mvps: (users[0].total_mvps || 0) + 1 });
         }
       }
     },
@@ -97,17 +97,17 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
 
   const approveStatMutation = useMutation({
     mutationFn: async (stat) => {
-      await base44.entities.StatSubmission.update(stat.id, { status: 'approved' });
-      const users = await base44.entities.User.filter({ id: stat.user_id });
+      await appClient.entities.StatSubmission.update(stat.id, { status: 'approved' });
+      const users = await appClient.entities.User.filter({ id: stat.user_id });
       if (users.length > 0) {
         const u = users[0];
-        await base44.entities.User.update(stat.user_id, {
+        await appClient.entities.User.update(stat.user_id, {
           total_goals: (u.total_goals || 0) + (stat.goals || 0),
           total_assists: (u.total_assists || 0) + (stat.assists || 0),
           games_played: (u.games_played || 0) + 1,
         });
       }
-      await base44.entities.Notification.create({
+      await appClient.entities.Notification.create({
         user_id: stat.user_id,
         type: 'stats_approved',
         title: 'Stats Approved!',
@@ -119,19 +119,19 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
   });
 
   const rejectStatMutation = useMutation({
-    mutationFn: (stat) => base44.entities.StatSubmission.update(stat.id, { status: 'rejected' }),
+    mutationFn: (stat) => appClient.entities.StatSubmission.update(stat.id, { status: 'rejected' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stats', gameId] }),
   });
 
   const removePlayerMutation = useMutation({
-    mutationFn: (rsvp) => base44.entities.RSVP.update(rsvp.id, { status: 'removed' }),
+    mutationFn: (rsvp) => appClient.entities.RSVP.update(rsvp.id, { status: 'removed' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rsvps', gameId] }),
   });
 
   const acceptWaitlistMutation = useMutation({
     mutationFn: async (rsvp) => {
-      await base44.entities.RSVP.update(rsvp.id, { status: 'going' });
-      await base44.entities.Notification.create({
+      await appClient.entities.RSVP.update(rsvp.id, { status: 'going' });
+      await appClient.entities.Notification.create({
         user_id: rsvp.user_id,
         type: 'rsvp_accepted',
         title: "You're in!",
@@ -143,7 +143,7 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
   });
 
   const makeOrganizerMutation = useMutation({
-    mutationFn: (rsvp) => base44.entities.Game.update(gameId, {
+    mutationFn: (rsvp) => appClient.entities.Game.update(gameId, {
       host_id: rsvp.user_id,
       host_name: rsvp.user_name,
       host_photo: rsvp.user_photo || '',
@@ -200,7 +200,12 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
                     </Link>
                     {r.user_id !== user?.id && (
                       <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-chart-3" title="Make organizer"
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-chart-3"
+                          title="Transfer host role"
+                          aria-label="Transfer host role"
                           onClick={() => makeOrganizerMutation.mutate(r)}>
                           <Crown className="w-3.5 h-3.5" />
                         </Button>

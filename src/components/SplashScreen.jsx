@@ -13,7 +13,7 @@ export default function SplashScreen({ onDone }) {
     <div
       className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center transition-opacity duration-600 ${fading ? 'opacity-0' : 'opacity-100'}`}
       style={{
-        backgroundImage: `url(https://media.base44.com/images/public/6a2349f5b560428513bb1b6d/ca68282d8_Players.jpg)`,
+        backgroundImage: `url(/assets/players-splash.png)`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,16 @@ import MOTMVoting from '@/components/game/MOTMVoting';
 import PostGameDashboard from '@/components/game/PostGameDashboard';
 import HostAdminPanel from '@/components/game/HostAdminPanel';
 
+const uniqueByUserId = (items = []) => {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = item?.user_id;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export default function GameDetail() {
   const { id } = useParams();
   const [user, setUser] = useState(null);
@@ -27,29 +37,45 @@ export default function GameDetail() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
+    appClient.auth.me().then(setUser).catch(() => {});
   }, []);
 
   const { data: game, isLoading } = useQuery({
     queryKey: ['game', id],
     queryFn: async () => {
-      const games = await base44.entities.Game.filter({ id });
+      const games = await appClient.entities.Game.filter({ id });
       return games[0];
     },
   });
 
   const { data: rsvps = [] } = useQuery({
     queryKey: ['rsvps', id],
-    queryFn: () => base44.entities.RSVP.filter({ game_id: id }),
+    queryFn: () => appClient.entities.RSVP.filter({ game_id: id }),
   });
 
   const { data: stats = [] } = useQuery({
     queryKey: ['stats', id],
-    queryFn: () => base44.entities.StatSubmission.filter({ game_id: id }),
+    queryFn: () => appClient.entities.StatSubmission.filter({ game_id: id }),
     enabled: game?.status === 'completed',
   });
 
-  const goingRsvps = rsvps.filter(r => r.status === 'going');
+  const hostRsvp = game?.host_id
+    ? {
+        id: `host-${game.host_id}`,
+        game_id: id,
+        user_id: game.host_id,
+        user_name: game.host_name,
+        user_photo: game.host_photo || '',
+        status: 'going',
+      }
+    : null;
+
+  const rsvpsWithHost = uniqueByUserId([
+    ...(hostRsvp ? [hostRsvp] : []),
+    ...rsvps,
+  ]);
+
+  const goingRsvps = rsvpsWithHost.filter(r => r.status === 'going');
   const waitlistRsvps = rsvps.filter(r => r.status === 'waitlist');
   const userRsvp = rsvps.find(r => r.user_id === user?.id);
   const isHost = !!(game?.host_id && user?.id && game.host_id === user.id);
@@ -60,11 +86,11 @@ export default function GameDetail() {
     mutationFn: async () => {
       if (userRsvp) {
         // Leave
-        await base44.entities.RSVP.delete(userRsvp.id);
+        await appClient.entities.RSVP.delete(userRsvp.id);
         // Promote first waitlisted
         if (userRsvp.status === 'going' && waitlistRsvps.length > 0) {
-          await base44.entities.RSVP.update(waitlistRsvps[0].id, { status: 'going' });
-          await base44.entities.Notification.create({
+          await appClient.entities.RSVP.update(waitlistRsvps[0].id, { status: 'going' });
+          await appClient.entities.Notification.create({
             user_id: waitlistRsvps[0].user_id,
             type: 'rsvp_accepted',
             title: 'You\'re in!',
@@ -75,7 +101,7 @@ export default function GameDetail() {
       } else {
         // Join
         const status = isFull ? 'waitlist' : 'going';
-        await base44.entities.RSVP.create({
+        await appClient.entities.RSVP.create({
           game_id: id,
           user_id: user.id,
           user_name: user.full_name,
@@ -83,7 +109,7 @@ export default function GameDetail() {
           status,
         });
         if (status === 'waitlist') {
-          await base44.entities.Notification.create({
+          await appClient.entities.Notification.create({
             user_id: user.id,
             type: 'waitlist',
             title: 'Added to Waitlist',
@@ -100,16 +126,16 @@ export default function GameDetail() {
 
   const saveTeamsMutation = useMutation({
     mutationFn: async ({ dark, white }) => {
-      await base44.entities.Game.update(id, { dark_team: dark, white_team: white });
+      await appClient.entities.Game.update(id, { dark_team: dark, white_team: white });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', id] }),
   });
 
   const announceTeamsMutation = useMutation({
     mutationFn: async () => {
-      await base44.entities.Game.update(id, { teams_announced: true });
+      await appClient.entities.Game.update(id, { teams_announced: true });
       for (const rsvp of goingRsvps) {
-        await base44.entities.Notification.create({
+        await appClient.entities.Notification.create({
           user_id: rsvp.user_id,
           type: 'teams_announced',
           title: 'Teams Announced!',
@@ -209,7 +235,7 @@ export default function GameDetail() {
         <HostAdminPanel
           game={game}
           gameId={id}
-          rsvps={rsvps}
+          rsvps={rsvpsWithHost}
           stats={stats}
           user={user}
           onSaveTeams={handleSaveTeams}
@@ -370,9 +396,17 @@ export default function GameDetail() {
         </TabsContent>
 
         <TabsContent value="chat" className="mt-4">
-          <CommentSection gameId={id} user={user} />
-        </TabsContent>
-      </Tabs>
+            <CommentSection
+              gameId={id}
+              user={user}
+              game={game}
+              players={uniqueByUserId([
+                { id: game.host_id, user_id: game.host_id, full_name: game.host_name, profile_photo: game.host_photo },
+                ...rsvps.map((r) => ({ id: r.user_id, user_id: r.user_id, full_name: r.user_name, profile_photo: r.user_photo })),
+              ])}
+            />
+          </TabsContent>
+        </Tabs>
 
       {/* Player stat submission + MOTM voting for completed games (before MVP is set) */}
       {user && game.status === 'completed' && !game.mvp_name && !isHost && goingRsvps.some(r => r.user_id === user.id) && (
@@ -396,9 +430,9 @@ function PlayerStatSubmission({ gameId, userId, userName, stats }) {
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (existing) {
-        await base44.entities.StatSubmission.update(existing.id, { goals: parseInt(goals), assists: parseInt(assists), status: 'pending' });
+        await appClient.entities.StatSubmission.update(existing.id, { goals: parseInt(goals), assists: parseInt(assists), status: 'pending' });
       } else {
-        await base44.entities.StatSubmission.create({
+        await appClient.entities.StatSubmission.create({
           game_id: gameId,
           user_id: userId,
           user_name: userName,

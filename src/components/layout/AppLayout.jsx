@@ -1,22 +1,24 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { Home, Plus, User, Bell, Trophy } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { appClient } from '@/api/backendClient';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import PullToRefresh from '@/components/layout/PullToRefresh';
 
 export default function AppLayout() {
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
+    appClient.auth.me().then(setUser).catch(() => {});
   }, []);
 
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['unread-notifications', user?.id],
     queryFn: async () => {
       if (!user) return 0;
-      const notifs = await base44.entities.Notification.filter({ user_id: user.id, read: false });
+      const notifs = await appClient.entities.Notification.filter({ user_id: user.id, read: false });
       return notifs.length;
     },
     enabled: !!user,
@@ -32,9 +34,11 @@ export default function AppLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
       <main className="flex-1 pb-20 md:pb-6 md:pt-16">
-        <Outlet />
+        <PullToRefresh onRefresh={() => queryClient.invalidateQueries()}>
+          <Outlet />
+        </PullToRefresh>
       </main>
 
       {/* Desktop Top Nav */}
@@ -69,7 +73,7 @@ export default function AppLayout() {
       </nav>
 
       {/* Mobile Bottom Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/90 backdrop-blur-xl border-t safe-area-bottom">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t safe-area-bottom">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map(item => (
             <Link

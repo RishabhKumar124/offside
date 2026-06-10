@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
+import { useAuth } from '@/lib/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -9,10 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import LocationSearch from '@/components/game/LocationSearch';
 import { CalendarDays, Users, Trophy, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import PageBackButton from '@/components/PageBackButton';
+import { toast } from '@/components/ui/use-toast';
 
 export default function CreateGame() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const { user, isLoadingAuth } = useAuth();
   const [loading, setLoading] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [passcode, setPasscode] = useState('');
@@ -20,7 +23,7 @@ export default function CreateGame() {
 
   const { data: settings = [] } = useQuery({
     queryKey: ['host-password-setting'],
-    queryFn: () => base44.entities.AppSettings.filter({ key: 'host_password' }),
+    queryFn: () => appClient.entities.AppSettings.filter({ key: 'host_password' }),
   });
   const hostPassword = settings[0]?.value || 'cesurtheman';
   const [form, setForm] = useState({
@@ -33,27 +36,77 @@ export default function CreateGame() {
     rules: '',
   });
 
-  useEffect(() => {
-    base44.auth.me().then(setUser);
-  }, []);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!unlocked) {
+      toast({
+        title: 'Host passcode required',
+        description: 'Enter the host passcode to create a game.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    let currentUser = user;
+    try {
+      currentUser = await appClient.auth.me();
+    } catch {
+      toast({
+        title: 'Not signed in',
+        description: 'Please sign in again before creating a game.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const title = form.title.trim();
+    const date = form.date.trim();
+    const locationName = form.location_name.trim();
+    const maxPlayers = Number.isFinite(form.max_players) ? form.max_players : 10;
+
+    if (!title || !date) {
+      toast({
+        title: 'Missing details',
+        description: 'Add a title and date before creating the game.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
-    const game = await base44.entities.Game.create({
-      ...form,
-      host_id: user.id,
-      host_name: user.full_name,
-      host_photo: user.profile_photo || '',
-      status: 'upcoming',
-      dark_team: [],
-      white_team: [],
-      stats_locked: false,
-      teams_announced: false,
-    });
-    setLoading(false);
-    navigate(`/game/${game.id}`);
+    try {
+      const game = await appClient.game.create({
+        ...form,
+        title,
+        date,
+        location_name: locationName || 'TBD',
+        max_players: maxPlayers,
+        host_name: currentUser.full_name,
+        host_photo: currentUser.profile_photo || '',
+      });
+      toast({
+        title: 'Game created',
+        description: 'Your event is live.',
+      });
+      navigate(`/game/${game.id}`);
+    } catch (error) {
+      toast({
+        title: 'Could not create game',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (isLoadingAuth) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!unlocked) {
     return (
@@ -95,6 +148,9 @@ export default function CreateGame() {
 
   return (
     <div className="max-w-xl mx-auto px-4 py-6">
+      <div className="mb-4">
+        <PageBackButton fallbackTo="/" />
+      </div>
       <h1 className="font-display text-4xl tracking-wider mb-6">HOST A GAME</h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">

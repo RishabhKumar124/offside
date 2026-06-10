@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
-import { Trophy, Star, Target, Pencil, Check, X } from 'lucide-react';
+import { Star, Target, Pencil, Check, X } from 'lucide-react';
 
 function EditableStatRow({ stat, gameId, isHost }) {
   const queryClient = useQueryClient();
@@ -19,13 +19,13 @@ function EditableStatRow({ stat, gameId, isHost }) {
       const newGoals = parseInt(goals);
       const newAssists = parseInt(assists);
       if (stat.id) {
-        await base44.entities.StatSubmission.update(stat.id, {
+        await appClient.entities.StatSubmission.update(stat.id, {
           goals: newGoals,
           assists: newAssists,
           status: 'approved',
         });
       } else {
-        await base44.entities.StatSubmission.create({
+        await appClient.entities.StatSubmission.create({
           game_id: gameId,
           user_id: stat.user_id,
           user_name: stat.user_name,
@@ -35,10 +35,10 @@ function EditableStatRow({ stat, gameId, isHost }) {
         });
       }
       // Update career stats
-      const users = await base44.entities.User.filter({ id: stat.user_id });
+      const users = await appClient.entities.User.filter({ id: stat.user_id });
       if (users.length > 0) {
         const u = users[0];
-        await base44.entities.User.update(stat.user_id, {
+        await appClient.entities.User.update(stat.user_id, {
           total_goals: Math.max(0, (u.total_goals || 0) - (stat.goals || 0) + newGoals),
           total_assists: Math.max(0, (u.total_assists || 0) - (stat.assists || 0) + newAssists),
         });
@@ -115,12 +115,12 @@ function EditableStatRow({ stat, gameId, isHost }) {
 export default function PostGameDashboard({ game, gameId, isHost }) {
   const { data: stats = [] } = useQuery({
     queryKey: ['stats', gameId],
-    queryFn: () => base44.entities.StatSubmission.filter({ game_id: gameId }),
+    queryFn: () => appClient.entities.StatSubmission.filter({ game_id: gameId }),
   });
 
   const { data: rsvps = [] } = useQuery({
     queryKey: ['rsvps', gameId],
-    queryFn: () => base44.entities.RSVP.filter({ game_id: gameId }),
+    queryFn: () => appClient.entities.RSVP.filter({ game_id: gameId }),
   });
 
   const approvedStats = stats.filter(s => s.status === 'approved');

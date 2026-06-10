@@ -1,9 +1,15 @@
 import React from "react";
+import PageBackButton from "@/components/PageBackButton";
 
-export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {
+export default function AuthLayout({ icon: Icon, title, subtitle, footer, children, showBack = false, backTo = '/' }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
+        {showBack && (
+          <div className="mb-4">
+            <PageBackButton fallbackTo={backTo} />
+          </div>
+        )}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary mb-4">
             <Icon className="w-7 h-7 text-primary-foreground" aria-hidden="true" />

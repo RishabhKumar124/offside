@@ -1,17 +1,18 @@
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Link } from 'react-router-dom';
 import { Target, Handshake, Trophy, Loader2, Crown } from 'lucide-react';
 import { useState } from 'react';
+import PageBackButton from '@/components/PageBackButton';
 
 export default function Leaderboard() {
   const [sort, setSort] = useState('goals');
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['leaderboard'],
-    queryFn: () => base44.entities.User.list('-total_goals', 100),
+    queryFn: () => appClient.entities.User.list('-total_goals', 100),
   });
 
   const sorted = [...users]
@@ -26,6 +27,9 @@ export default function Leaderboard() {
 
   return (
     <div className="max-w-xl mx-auto px-4 py-6">
+      <div className="mb-4">
+        <PageBackButton fallbackTo="/" />
+      </div>
       <h1 className="font-display text-4xl tracking-wider mb-6">RANKINGS</h1>
 
       <Tabs value={sort} onValueChange={setSort} className="mb-6">

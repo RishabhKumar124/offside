@@ -1,8 +1,6 @@
-import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Star, CheckCircle } from 'lucide-react';
 
 export default function MOTMVoting({ gameId, userId, goingRsvps }) {
@@ -10,7 +8,7 @@ export default function MOTMVoting({ gameId, userId, goingRsvps }) {
 
   const { data: votes = [] } = useQuery({
     queryKey: ['motm-votes', gameId],
-    queryFn: () => base44.entities.MOTMVote.filter({ game_id: gameId }),
+    queryFn: () => appClient.entities.MOTMVote.filter({ game_id: gameId }),
   });
 
   const myVote = votes.find(v => v.voter_id === userId);
@@ -18,12 +16,12 @@ export default function MOTMVoting({ gameId, userId, goingRsvps }) {
   const voteMutation = useMutation({
     mutationFn: async (player) => {
       if (myVote) {
-        await base44.entities.MOTMVote.update(myVote.id, {
+        await appClient.entities.MOTMVote.update(myVote.id, {
           voted_for_id: player.user_id,
           voted_for_name: player.user_name,
         });
       } else {
-        await base44.entities.MOTMVote.create({
+        await appClient.entities.MOTMVote.create({
           game_id: gameId,
           voter_id: userId,
           voted_for_id: player.user_id,

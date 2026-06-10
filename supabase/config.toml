@@ -1,0 +1,4 @@
+project_id = "offside"
+
+[functions.game-reminder]
+verify_jwt = false

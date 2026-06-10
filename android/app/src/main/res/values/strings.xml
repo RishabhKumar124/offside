@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Offside</string>
+    <string name="title_activity_main">Offside</string>
+    <string name="package_name">com.rishabhkumar.offside</string>
+    <string name="custom_url_scheme">com.rishabhkumar.offside</string>
+</resources>

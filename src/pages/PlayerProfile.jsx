@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,14 +11,14 @@ export default function PlayerProfile() {
   const { data: player, isLoading } = useQuery({
     queryKey: ['player', userId],
     queryFn: async () => {
-      const users = await base44.entities.User.filter({ id: userId });
+      const users = await appClient.entities.User.filter({ id: userId });
       return users[0];
     },
   });
 
   const { data: recentStats = [] } = useQuery({
     queryKey: ['player-stats', userId],
-    queryFn: () => base44.entities.StatSubmission.filter({ user_id: userId, status: 'approved' }),
+    queryFn: () => appClient.entities.StatSubmission.filter({ user_id: userId, status: 'approved' }),
   });
 
   if (isLoading || !player) {

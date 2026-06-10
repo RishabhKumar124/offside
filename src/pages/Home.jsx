@@ -1,4 +1,4 @@
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
 import { useQuery } from '@tanstack/react-query';
 import GameCard from '@/components/game/GameCard';
 import { Loader2, Zap } from 'lucide-react';
@@ -10,12 +10,12 @@ export default function Home() {
 
   const { data: games = [], isLoading } = useQuery({
     queryKey: ['games'],
-    queryFn: () => base44.entities.Game.list('-date', 50),
+    queryFn: () => appClient.entities.Game.list('-date', 50),
   });
 
   const { data: rsvps = [] } = useQuery({
     queryKey: ['all-rsvps'],
-    queryFn: () => base44.entities.RSVP.filter({ status: 'going' }),
+    queryFn: () => appClient.entities.RSVP.filter({ status: 'going' }),
   });
 
   const rsvpCounts = {};

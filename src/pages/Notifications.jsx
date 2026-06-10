@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
 import {
-  Bell, CheckCheck, Trophy, Users, Star, BarChart3, UserPlus, Clock, Loader2
+  Bell, CheckCheck, Trophy, Users, BarChart3, UserPlus, Clock, Loader2, AtSign
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import PageBackButton from '@/components/PageBackButton';
 
 const typeIcons = {
   teams_announced: Users,
@@ -18,6 +18,7 @@ const typeIcons = {
   rsvp_accepted: UserPlus,
   waitlist: Clock,
   game_update: Bell,
+  mention: AtSign,
 };
 
 export default function Notifications() {
@@ -25,12 +26,12 @@ export default function Notifications() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    base44.auth.me().then(setUser);
+    appClient.auth.me().then(setUser);
   }, []);
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', user?.id],
-    queryFn: () => base44.entities.Notification.filter({ user_id: user.id }, '-created_date', 50),
+    queryFn: () => appClient.entities.Notification.filter({ user_id: user.id }, '-created_date', 50),
     enabled: !!user,
   });
 
@@ -38,7 +39,7 @@ export default function Notifications() {
     mutationFn: async () => {
       const unread = notifications.filter(n => !n.read);
       for (const n of unread) {
-        await base44.entities.Notification.update(n.id, { read: true });
+        await appClient.entities.Notification.update(n.id, { read: true });
       }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
@@ -46,6 +47,9 @@ export default function Notifications() {
 
   return (
     <div className="max-w-xl mx-auto px-4 py-6">
+      <div className="mb-4">
+        <PageBackButton fallbackTo="/" />
+      </div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-display text-4xl tracking-wider">NOTIFICATIONS</h1>
         {notifications.some(n => !n.read) && (

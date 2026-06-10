@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { appClient } from '@/api/backendClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ClubSearch from '@/components/clubs/ClubSearch';
 import { Camera, Trophy, Target, Handshake, Gamepad2, Save, LogOut, Loader2, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { toast } from '@/components/ui/use-toast';
+import PageBackButton from '@/components/PageBackButton';
 
 export default function Profile() {
   const [user, setUser] = useState(null);
@@ -23,7 +24,7 @@ export default function Profile() {
   });
 
   useEffect(() => {
-    base44.auth.me().then(u => {
+    appClient.auth.me().then(u => {
       setUser(u);
       setForm({
         birthday: u.birthday || '',
@@ -38,14 +39,35 @@ export default function Profile() {
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setForm(prev => ({ ...prev, profile_photo: file_url }));
+    try {
+      const { file_url } = await appClient.integrations.Core.UploadFile({ file });
+      setForm(prev => ({ ...prev, profile_photo: file_url }));
+    } catch (error) {
+      toast({
+        title: 'Photo upload failed',
+        description: error.message || 'Please try another image.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleSave = async () => {
     setSaving(true);
-    await base44.auth.updateMe(form);
-    setSaving(false);
+    try {
+      await appClient.auth.updateMe(form);
+      toast({
+        title: 'Profile saved',
+        description: 'Your changes were saved successfully.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Save failed',
+        description: error.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -65,6 +87,9 @@ export default function Profile() {
 
   return (
     <div className="max-w-xl mx-auto px-4 py-6">
+      <div className="mb-4">
+        <PageBackButton fallbackTo="/" />
+      </div>
       <h1 className="font-display text-4xl tracking-wider mb-6">MY PROFILE</h1>
 
       {/* Player Card */}
@@ -146,7 +171,7 @@ export default function Profile() {
           </Link>
         )}
 
-        <Button variant="outline" className="w-full" onClick={() => base44.auth.logout()}>
+        <Button variant="outline" className="w-full" onClick={() => appClient.auth.logout()}>
           <LogOut className="w-4 h-4 mr-2" /> Sign Out
         </Button>
       </div>

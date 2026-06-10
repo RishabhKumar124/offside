@@ -1,39 +1,107 @@
-**Welcome to your Base44 project** 
+# Offside
 
-**About**
+Offside is a mobile-first pickup football app for creating games, joining RSVPs, building teams, tracking post-game stats, voting for Man of the Match, and viewing player rankings.
 
-View and Edit  your app on [Base44.com](http://Base44.com) 
+## Local setup
 
-This project contains everything you need to run your app locally.
+1. Install dependencies:
 
-**Edit the code in your local development environment**
-
-Any change pushed to the repo will also be reflected in the Base44 Builder.
-
-**Prerequisites:** 
-
-1. Clone the repository using the project's Git URL 
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
-
-```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
-
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+```bash
+npm install
 ```
 
-Run the app: `npm run dev`
+2. Create a local environment file:
 
-**Publish your changes**
+```bash
+cp .env.example .env.local
+```
 
-Open [Base44.com](http://Base44.com) and click on Publish.
+3. Fill in your Supabase values:
 
-**Docs & Support**
+```text
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_PROFILE_PHOTO_BUCKET=profile-photos
+```
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+4. Apply the database schema in Supabase SQL Editor using `backend/schema.sql`.
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+5. Run the web app:
+
+```bash
+npm run dev
+```
+
+## Supabase setup
+
+- Run `backend/schema.sql` in the Supabase SQL Editor.
+- In Authentication > Providers, enable Email and Google if you want Google sign-in.
+- Add your app URLs to Authentication > URL Configuration. For local testing, include `http://localhost:5173`.
+- The profile photo bucket is created by the schema as `profile-photos`.
+- To make a user an admin, update their profile row:
+
+```sql
+update public.users set role = 'admin' where email = 'you@example.com';
+```
+
+## Scheduled game reminders
+
+The scheduled reminder is implemented at `supabase/functions/game-reminder/index.ts`.
+
+Deploy it with:
+
+```bash
+supabase functions deploy game-reminder
+```
+
+Then schedule it every five minutes from Supabase Cron. See `supabase/functions/game-reminder/README.md` for SQL and dashboard notes.
+
+## Web build
+
+```bash
+npm run build
+npm run preview
+```
+
+## Android / Google Play build
+
+This app uses Capacitor with package id `com.rishabhkumar.offside`.
+
+1. Install Android Studio, a JDK, and the Android SDK.
+2. Build and sync the web app into Android:
+
+```bash
+npm run cap:sync
+```
+
+3. Open the Android project:
+
+```bash
+npm run android:open
+```
+
+4. In Android Studio, configure a release signing key.
+5. Build a signed Android App Bundle (`.aab`) for Play Console.
+
+Google Play release checklist:
+
+- Create the app in Play Console.
+- Confirm app name: Offside.
+- Confirm package id: `com.rishabhkumar.offside`.
+- Upload a signed `.aab`.
+- Complete Play app signing setup.
+- Add a privacy policy URL.
+- Complete Data safety and Content rating forms.
+- Add app category, short description, full description, screenshots, icon, and feature graphic.
+- Use internal or closed testing before production rollout if your developer account requires it.
+
+## Useful scripts
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run cap:sync
+npm run android:open
+npm run android:bundle
+```
