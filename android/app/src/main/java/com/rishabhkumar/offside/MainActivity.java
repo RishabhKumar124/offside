@@ -1,5 +1,6 @@
 package com.rishabhkumar.offside;
 
+import android.os.Build;
 import android.os.Bundle;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -14,8 +15,10 @@ public class MainActivity extends BridgeActivity {
         WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
         getWindow().setStatusBarColor(ContextCompat.getColor(this, R.color.systemBars));
         getWindow().setNavigationBarColor(ContextCompat.getColor(this, R.color.systemBars));
-        getWindow().setStatusBarContrastEnforced(true);
-        getWindow().setNavigationBarContrastEnforced(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setStatusBarContrastEnforced(true);
+            getWindow().setNavigationBarContrastEnforced(true);
+        }
 
         WindowInsetsControllerCompat controller =
                 WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
