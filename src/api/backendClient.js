@@ -39,6 +39,8 @@ const tableByEntity = {
   AppSettings: 'app_settings',
 };
 
+const leaderboardUserColumns = 'id, full_name, profile_photo, total_goals, total_assists, total_mvps, games_played';
+
 const authError = (message = 'Authentication required') => {
   const error = new Error(message);
   error.status = 401;
@@ -250,6 +252,18 @@ export const appClient = {
       });
       if (error) throw error;
       return data;
+    },
+  },
+
+  leaderboard: {
+    async listUsers(sort = '-total_goals', limit = 300) {
+      let query = requireSupabase()
+        .from('users')
+        .select(leaderboardUserColumns)
+        .gt('games_played', 0);
+      query = applySort(query, sort);
+      if (limit) query = query.limit(limit);
+      return readList(query);
     },
   },
 

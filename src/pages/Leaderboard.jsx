@@ -7,20 +7,28 @@ import { Target, Handshake, Trophy, Loader2, Crown } from 'lucide-react';
 import { useState } from 'react';
 import PageBackButton from '@/components/PageBackButton';
 
+const LEADERBOARD_LIMIT = 300;
+
+const rankingOptions = {
+  goals: { order: '-total_goals', field: 'total_goals', label: 'goals' },
+  assists: { order: '-total_assists', field: 'total_assists', label: 'assists' },
+  mvps: { order: '-total_mvps', field: 'total_mvps', label: 'mvps' },
+};
+
+const statValue = (player, key) => player?.[rankingOptions[key]?.field] || 0;
+
 export default function Leaderboard() {
   const [sort, setSort] = useState('goals');
+  const activeRanking = rankingOptions[sort] || rankingOptions.goals;
 
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ['leaderboard'],
-    queryFn: () => appClient.entities.User.list('-total_goals', 100),
+    queryKey: ['leaderboard', sort],
+    queryFn: () => appClient.leaderboard.listUsers(activeRanking.order, LEADERBOARD_LIMIT),
   });
 
   const sorted = [...users]
-    .filter(u => (u.games_played || 0) > 0)
     .sort((a, b) => {
-      if (sort === 'goals') return (b.total_goals || 0) - (a.total_goals || 0);
-      if (sort === 'assists') return (b.total_assists || 0) - (a.total_assists || 0);
-      return (b.total_mvps || 0) - (a.total_mvps || 0);
+      return statValue(b, sort) - statValue(a, sort);
     });
 
   const podiumColors = ['text-chart-3', 'text-muted-foreground', 'text-chart-3/60'];
@@ -52,9 +60,9 @@ export default function Leaderboard() {
       ) : (
         <div className="space-y-2">
           {sorted.map((player, i) => {
-            const val = sort === 'goals' ? player.total_goals : sort === 'assists' ? player.total_assists : player.total_mvps;
+            const val = statValue(player, sort);
             return (
-              <Link key={player.id} to={`/player/${player.id}`}>
+              <Link key={player.id} to={`/player/${player.id}`} className="block">
                 <Card className={`p-4 hover:shadow-md transition-all ${i < 3 ? 'border-primary/20' : ''}`}>
                   <div className="flex items-center gap-4">
                     <div className="w-8 text-center">
@@ -73,11 +81,25 @@ export default function Leaderboard() {
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{player.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{player.games_played || 0} games</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                        <span>{player.games_played || 0} games</span>
+                        <span className={`inline-flex items-center gap-1 ${sort === 'goals' ? 'font-semibold text-primary' : ''}`}>
+                          <Target className="h-3 w-3" />
+                          {player.total_goals || 0}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 ${sort === 'assists' ? 'font-semibold text-primary' : ''}`}>
+                          <Handshake className="h-3 w-3" />
+                          {player.total_assists || 0}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 ${sort === 'mvps' ? 'font-semibold text-primary' : ''}`}>
+                          <Trophy className="h-3 w-3" />
+                          {player.total_mvps || 0}
+                        </span>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className="font-display text-2xl">{val || 0}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase">{sort}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase">{activeRanking.label}</p>
                     </div>
                   </div>
                 </Card>

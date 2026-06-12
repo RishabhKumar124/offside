@@ -12,6 +12,7 @@ import LocationSearch from '@/components/game/LocationSearch';
 import { CalendarDays, Users, Trophy, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import PageBackButton from '@/components/PageBackButton';
 import { toast } from '@/components/ui/use-toast';
+import { toApiDateTime } from '@/lib/dateTime';
 
 export default function CreateGame() {
   const navigate = useNavigate();
@@ -78,7 +79,7 @@ export default function CreateGame() {
       const game = await appClient.game.create({
         ...form,
         title,
-        date,
+        date: toApiDateTime(date),
         location_name: locationName || 'TBD',
         max_players: maxPlayers,
         host_name: currentUser.full_name,

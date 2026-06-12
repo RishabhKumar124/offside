@@ -14,6 +14,7 @@ import {
   CheckCircle, XCircle, Crown, Trophy, Loader2, UserMinus, AlertTriangle
 } from 'lucide-react';
 import TeamBuilder from '@/components/game/TeamBuilder';
+import { toApiDateTime, toDateTimeLocalValue } from '@/lib/dateTime';
 
 export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSaveTeams, onAnnounceTeams }) {
   const queryClient = useQueryClient();
@@ -23,7 +24,7 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
   // Edit game state
   const [editForm, setEditForm] = useState({
     title: game.title,
-    date: game.date ? new Date(game.date).toISOString().slice(0, 16) : '',
+    date: toDateTimeLocalValue(game.date),
     location_name: game.location_name || '',
     max_players: game.max_players,
     rules: game.rules || '',
@@ -49,7 +50,10 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
 
   // Mutations
   const editMutation = useMutation({
-    mutationFn: () => appClient.entities.Game.update(gameId, editForm),
+    mutationFn: () => appClient.entities.Game.update(gameId, {
+      ...editForm,
+      date: toApiDateTime(editForm.date),
+    }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', gameId] }),
   });
 
