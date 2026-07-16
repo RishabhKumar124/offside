@@ -19,16 +19,8 @@ import CommentSection from '@/components/game/CommentSection';
 import MOTMVoting from '@/components/game/MOTMVoting';
 import PostGameDashboard from '@/components/game/PostGameDashboard';
 import HostAdminPanel from '@/components/game/HostAdminPanel';
-
-const uniqueByUserId = (items = []) => {
-  const seen = new Set();
-  return items.filter((item) => {
-    const key = item?.user_id;
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-};
+import { goingParticipantsWithHost, participantsWithHost, uniqueByUserId } from '@/utils/gameParticipants';
+import { toast } from '@/components/ui/use-toast';
 
 export default function GameDetail() {
   const { id } = useParams();
@@ -59,23 +51,8 @@ export default function GameDetail() {
     enabled: game?.status === 'completed',
   });
 
-  const hostRsvp = game?.host_id
-    ? {
-        id: `host-${game.host_id}`,
-        game_id: id,
-        user_id: game.host_id,
-        user_name: game.host_name,
-        user_photo: game.host_photo || '',
-        status: 'going',
-      }
-    : null;
-
-  const rsvpsWithHost = uniqueByUserId([
-    ...(hostRsvp ? [hostRsvp] : []),
-    ...rsvps,
-  ]);
-
-  const goingRsvps = rsvpsWithHost.filter(r => r.status === 'going');
+  const rsvpsWithHost = participantsWithHost(game, rsvps);
+  const goingRsvps = goingParticipantsWithHost(game, rsvps);
   const waitlistRsvps = rsvps.filter(r => r.status === 'waitlist');
   const userRsvp = rsvps.find(r => r.user_id === user?.id);
   const isHost = !!(game?.host_id && user?.id && game.host_id === user.id);
@@ -132,23 +109,58 @@ export default function GameDetail() {
   });
 
   const announceTeamsMutation = useMutation({
-    mutationFn: async () => {
-      await appClient.entities.Game.update(id, { teams_announced: true });
-      for (const rsvp of goingRsvps) {
-        await appClient.entities.Notification.create({
-          user_id: rsvp.user_id,
-          type: 'teams_announced',
-          title: 'Teams Announced!',
-          message: `Teams for "${game.title}" have been set. Check which team you're on!`,
-          game_id: id,
-        });
-      }
+    mutationFn: async ({ dark, white } = {}) => {
+      await appClient.entities.Game.update(id, {
+        dark_team: dark || game.dark_team || [],
+        white_team: white || game.white_team || [],
+      });
+      return appClient.game.announceTeams(id);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', id] }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['game', id] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      toast({
+        title: 'Teams announced',
+        description: `${result?.notified_count || 0} players were notified.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Could not announce teams',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    },
   });
 
-  const handleSaveTeams = (dark, white) => saveTeamsMutation.mutate({ dark, white });
-  const handleAnnounceTeams = () => announceTeamsMutation.mutate();
+  const handleSaveTeams = (dark, white) => saveTeamsMutation.mutateAsync({ dark, white });
+  const handleAnnounceTeams = (dark, white) => announceTeamsMutation.mutate({ dark, white });
+
+  const [mvpFinalizeCheckKey, setMvpFinalizeCheckKey] = useState('');
+
+  useEffect(() => {
+    if (!user || !game || game.status !== 'completed' || game.mvp_user_id) return;
+
+    const checkKey = `${game.id}:${game.completed_date || game.updated_date || ''}`;
+    if (mvpFinalizeCheckKey === checkKey) return;
+
+    setMvpFinalizeCheckKey(checkKey);
+    appClient.postGame.finalizeMvpIfReady(game.id)
+      .then((updatedGame) => {
+        if (updatedGame?.mvp_user_id) {
+          queryClient.invalidateQueries({ queryKey: ['game', id] });
+          queryClient.invalidateQueries({ queryKey: ['player'] });
+          queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+          toast({
+            title: 'MVP announced',
+            description: `${updatedGame.mvp_name} has been selected as Man of the Match.`,
+          });
+        }
+      })
+      .catch((error) => {
+        console.warn('Could not auto-finalize MVP voting:', error);
+      });
+  }, [game, id, mvpFinalizeCheckKey, queryClient, user]);
 
   if (isLoading || !game) {
     return (
@@ -408,12 +420,14 @@ export default function GameDetail() {
           </TabsContent>
         </Tabs>
 
-      {/* Player stat submission + MOTM voting for completed games (before MVP is set) */}
-      {user && game.status === 'completed' && !game.mvp_name && !isHost && goingRsvps.some(r => r.user_id === user.id) && (
-        <>
-          <PlayerStatSubmission gameId={id} userId={user.id} userName={user.full_name} stats={stats} />
-          <MOTMVoting gameId={id} userId={user.id} goingRsvps={goingRsvps} />
-        </>
+      {/* Player stat submission remains available after MVP is announced. */}
+      {user && game.status === 'completed' && goingRsvps.some(r => r.user_id === user.id) && (
+        <PlayerStatSubmission gameId={id} userId={user.id} userName={user.full_name} stats={stats} />
+      )}
+
+      {/* MVP voting closes once MVP is announced. */}
+      {user && game.status === 'completed' && !game.mvp_name && goingRsvps.some(r => r.user_id === user.id) && (
+        <MOTMVoting game={game} gameId={id} userId={user.id} goingRsvps={goingRsvps} />
       )}
     </div>
   );
@@ -427,22 +441,46 @@ function PlayerStatSubmission({ gameId, userId, userName, stats }) {
   const [goals, setGoals] = useState(existing?.goals || 0);
   const [assists, setAssists] = useState(existing?.assists || 0);
 
+  useEffect(() => {
+    setGoals(existing?.goals || 0);
+    setAssists(existing?.assists || 0);
+  }, [existing?.id, existing?.goals, existing?.assists]);
+
   const submitMutation = useMutation({
     mutationFn: async () => {
+      const submittedGoals = Math.max(0, Number.parseInt(goals, 10) || 0);
+      const submittedAssists = Math.max(0, Number.parseInt(assists, 10) || 0);
       if (existing) {
-        await appClient.entities.StatSubmission.update(existing.id, { goals: parseInt(goals), assists: parseInt(assists), status: 'pending' });
+        await appClient.entities.StatSubmission.update(existing.id, {
+          goals: submittedGoals,
+          assists: submittedAssists,
+          status: 'pending',
+        });
       } else {
         await appClient.entities.StatSubmission.create({
           game_id: gameId,
           user_id: userId,
           user_name: userName,
-          goals: parseInt(goals),
-          assists: parseInt(assists),
+          goals: submittedGoals,
+          assists: submittedAssists,
           status: 'pending',
         });
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stats', gameId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stats', gameId] });
+      toast({
+        title: 'Stats submitted',
+        description: 'They are pending host approval. Your profile totals update after approval.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Could not submit stats',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    },
   });
 
   if (existing?.status === 'approved') {
@@ -467,7 +505,7 @@ function PlayerStatSubmission({ gameId, userId, userName, stats }) {
           <p className="text-xs text-destructive">Your previous submission was rejected. Please resubmit.</p>
         )}
         {existing?.status === 'pending' && (
-          <p className="text-xs text-chart-3">Your stats are pending host approval.</p>
+          <p className="text-xs text-chart-3">Your stats are pending host approval. Goals and assists update on your profile after approval.</p>
         )}
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -479,7 +517,8 @@ function PlayerStatSubmission({ gameId, userId, userName, stats }) {
             <Input type="number" min={0} value={assists} onChange={(e) => setAssists(e.target.value)} />
           </div>
         </div>
-        <Button onClick={() => submitMutation.mutate()} className="w-full" disabled={existing?.status === 'pending'}>
+        <Button onClick={() => submitMutation.mutate()} className="w-full" disabled={submitMutation.isPending || existing?.status === 'pending'}>
+          {submitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
           {existing ? 'Update Stats' : 'Submit Stats'}
         </Button>
       </CardContent>

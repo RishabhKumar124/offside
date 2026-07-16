@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Heart, ThumbsDown, MessageCircle, Send, ChevronDown, ChevronUp, AtSign } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from '@/components/ui/use-toast';
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -106,7 +107,17 @@ function CommentComposer({
     const trimmed = text.trim();
     if (!trimmed) return;
     const mentionUserIds = extractMentionedIds(trimmed, mentionCandidates);
-    await onSubmit({ text: trimmed, mentionUserIds, setText });
+    try {
+      await onSubmit({ text: trimmed, mentionUserIds, setText });
+      setText('');
+    } catch (error) {
+      console.error('Could not post comment:', error);
+      toast({
+        title: 'Could not post comment',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -224,9 +235,8 @@ function CommentItem({ comment, user, gameId, depth = 0, mentionById = new Map()
 
   const handleReplySubmit = async ({ text, mentionUserIds, setText }) => {
     await replyMutation.mutateAsync({ text, mentionUserIds });
-    setText('');
 
-    await Promise.all(
+    await Promise.allSettled(
       mentionUserIds
         .filter((id) => id !== user.id)
         .map((id) =>
@@ -354,7 +364,7 @@ export default function CommentSection({ gameId, user, game, players = [] }) {
         dislikes: [],
       });
 
-      await Promise.all(
+      await Promise.allSettled(
         mentionUserIds
           .filter((id) => id !== user.id)
           .map((id) =>

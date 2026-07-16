@@ -2,3 +2,6 @@ project_id = "offside"
 
 [functions.game-reminder]
 verify_jwt = false
+
+[functions.dispatch-push-notifications]
+verify_jwt = false

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { appClient } from '@/api/backendClient';
+import { appClient, completeWebAuthRedirect } from '@/api/backendClient';
+import { registerPushNotifications, unregisterPushNotifications } from '@/lib/pushNotifications';
 
 const AuthContext = createContext();
 
@@ -16,9 +17,11 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoadingAuth(true);
       setAuthError(null);
+      await completeWebAuthRedirect();
       const currentUser = await appClient.auth.me();
       setUser(currentUser);
       setIsAuthenticated(true);
+      void registerPushNotifications(currentUser);
     } catch (error) {
       setUser(null);
       setIsAuthenticated(false);
@@ -45,6 +48,7 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(async (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
+    await unregisterPushNotifications();
     await appClient.auth.logout(shouldRedirect ? '/login' : false);
   }, []);
 

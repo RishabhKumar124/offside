@@ -15,7 +15,7 @@ export const supabase = supabaseUrl && supabaseAnonKey
       auth: {
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: !isNativeApp(),
+        detectSessionInUrl: false,
         flowType: 'pkce',
       },
     })
@@ -141,6 +141,28 @@ export const handleAuthCallbackUrl = async (url) => {
   return null;
 };
 
+export const completeWebAuthRedirect = async () => {
+  if (isNativeApp() || typeof window === 'undefined') return null;
+
+  const client = requireSupabase();
+  const { queryParams, hashParams } = paramsFromUrl(window.location.href);
+  const errorCode = queryParams.get('error') || hashParams.get('error');
+  const errorDescription = queryParams.get('error_description') || hashParams.get('error_description');
+
+  if (errorCode) {
+    window.history.replaceState({}, '', window.location.pathname || '/');
+    throw new Error(errorDescription || errorCode);
+  }
+
+  const code = queryParams.get('code');
+  if (!code) return null;
+
+  const { data, error } = await client.auth.exchangeCodeForSession(code);
+  window.history.replaceState({}, '', window.location.pathname || '/');
+  if (error) throw error;
+  return data.session;
+};
+
 const applySort = (query, sort) => {
   if (!sort) return query.order('created_date', { ascending: false });
   const ascending = !sort.startsWith('-');
@@ -251,7 +273,27 @@ export const appClient = {
         p_host_photo: values.host_photo || '',
       });
       if (error) throw error;
+
+      const { error: rsvpError } = await requireSupabase()
+        .from('rsvps')
+        .upsert({
+          game_id: data.id,
+          user_id: data.host_id,
+          user_name: values.host_name || '',
+          user_photo: values.host_photo || '',
+          status: 'going',
+        }, { onConflict: 'game_id,user_id' });
+      if (rsvpError) throw rsvpError;
+
       return data;
+    },
+
+    async announceTeams(gameId) {
+      return readSingle(
+        requireSupabase().rpc('announce_teams', {
+          p_game_id: gameId,
+        })
+      );
     },
   },
 
@@ -264,6 +306,74 @@ export const appClient = {
       query = applySort(query, sort);
       if (limit) query = query.limit(limit);
       return readList(query);
+    },
+  },
+
+  postGame: {
+    async completeGame(gameId) {
+      return readSingle(
+        requireSupabase().rpc('complete_game', {
+          p_game_id: gameId,
+        })
+      );
+    },
+
+    async approveStatSubmission(statId) {
+      return readSingle(
+        requireSupabase().rpc('approve_stat_submission', {
+          p_stat_id: statId,
+        })
+      );
+    },
+
+    async upsertApprovedStatSubmission({ gameId, userId, userName, goals, assists }) {
+      return readSingle(
+        requireSupabase().rpc('upsert_approved_stat_submission', {
+          p_game_id: gameId,
+          p_user_id: userId,
+          p_user_name: userName || '',
+          p_goals: Number.parseInt(goals, 10) || 0,
+          p_assists: Number.parseInt(assists, 10) || 0,
+        })
+      );
+    },
+
+    async saveScoreAndMvp({ gameId, darkScore, whiteScore, mvpUserId }) {
+      return readSingle(
+        requireSupabase().rpc('save_score_and_mvp', {
+          p_game_id: gameId,
+          p_dark_score: darkScore === '' || darkScore == null ? null : Number.parseInt(darkScore, 10),
+          p_white_score: whiteScore === '' || whiteScore == null ? null : Number.parseInt(whiteScore, 10),
+          p_mvp_user_id: mvpUserId || null,
+        })
+      );
+    },
+
+    async finalizeMvpIfReady(gameId) {
+      return readSingle(
+        requireSupabase().rpc('finalize_mvp_if_ready', {
+          p_game_id: gameId,
+        })
+      );
+    },
+  },
+
+  push: {
+    async registerToken({ token, platform = 'android' }) {
+      return readSingle(
+        requireSupabase().rpc('register_push_token', {
+          p_token: token,
+          p_platform: platform,
+        })
+      );
+    },
+
+    async deactivateToken(token) {
+      return readSingle(
+        requireSupabase().rpc('deactivate_push_token', {
+          p_token: token,
+        })
+      );
     },
   },
 

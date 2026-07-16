@@ -11,8 +11,10 @@ import { Camera, Trophy, Target, Handshake, Gamepad2, Save, LogOut, Loader2, Shi
 import { Link } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
 import PageBackButton from '@/components/PageBackButton';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function Profile() {
+  const { logout } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -171,7 +173,7 @@ export default function Profile() {
           </Link>
         )}
 
-        <Button variant="outline" className="w-full" onClick={() => appClient.auth.logout()}>
+        <Button variant="outline" className="w-full" onClick={() => logout()}>
           <LogOut className="w-4 h-4 mr-2" /> Sign Out
         </Button>
       </div>

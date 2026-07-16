@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { appClient } from "@/api/backendClient";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,15 @@ import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { toast } from "@/components/ui/use-toast";
 
+const RESEND_COOLDOWN_SECONDS = 60;
+
+const authErrorMessage = (message, fallback) => {
+  if (message?.toLowerCase().includes("email rate limit")) {
+    return "Email verification is temporarily rate limited. Try Google sign-in, or wait before requesting another email.";
+  }
+  return message || fallback;
+};
+
 export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,6 +28,16 @@ export default function Register() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (!resendCooldown) return undefined;
+    const timer = window.setTimeout(() => {
+      setResendCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [resendCooldown]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,10 +48,16 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await appClient.auth.register({ email, password });
+      const result = await appClient.auth.register({ email, password });
+      if (result?.session?.access_token) {
+        appClient.auth.setToken(result.session.access_token);
+        window.location.href = "/";
+        return;
+      }
       setShowOtp(true);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (err) {
-      setError(err.message || "Registration failed");
+      setError(authErrorMessage(err.message, "Registration failed"));
     } finally {
       setLoading(false);
     }
@@ -48,22 +73,27 @@ export default function Register() {
       }
       window.location.href = "/";
     } catch (err) {
-      setError(err.message || "Invalid verification code");
+      setError(authErrorMessage(err.message, "Invalid verification code"));
     } finally {
       setLoading(false);
     }
   };
 
   const handleResend = async () => {
+    if (resendCooldown > 0 || resendLoading) return;
     setError("");
+    setResendLoading(true);
     try {
       await appClient.auth.resendOtp(email);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
       toast({
         title: "Code sent",
         description: "Check your email for the new code.",
       });
     } catch (err) {
-      setError(err.message || "Failed to resend code");
+      setError(authErrorMessage(err.message, "Failed to resend code"));
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -73,7 +103,7 @@ export default function Register() {
     try {
       await appClient.auth.loginWithProvider("google", "/");
     } catch (err) {
-      setError(err.message || "Google sign-up failed");
+      setError(authErrorMessage(err.message, "Google sign-up failed"));
       setGoogleLoading(false);
     }
   };
@@ -124,8 +154,12 @@ export default function Register() {
         </Button>
         <p className="text-center text-sm text-muted-foreground mt-4">
           Didn't receive the code?{" "}
-          <button onClick={handleResend} className="text-primary font-medium hover:underline">
-            Resend
+          <button
+            onClick={handleResend}
+            className="text-primary font-medium hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={resendLoading || resendCooldown > 0}
+          >
+            {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : resendLoading ? "Sending..." : "Resend"}
           </button>
         </p>
       </AuthLayout>

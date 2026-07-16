@@ -35,6 +35,12 @@ if (Capacitor.isNativePlatform()) {
   CapacitorApp.getLaunchUrl().then((event) => {
     if (event?.url) handleNativeAuthUrl(event);
   });
+} else if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error) => {
+      console.warn('Service worker registration failed:', error);
+    });
+  });
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

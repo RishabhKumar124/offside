@@ -136,7 +136,7 @@ export default function TeamBuilder({ game, rsvps, isHost, onSaveTeams, onAnnoun
           <Button onClick={handleSave} variant="outline" className="flex-1">
             <Users className="w-4 h-4 mr-2" /> Save Teams
           </Button>
-          <Button onClick={() => { handleSave(); onAnnounceTeams(); }} className="flex-1">
+          <Button onClick={() => onAnnounceTeams(darkTeam, whiteTeam)} className="flex-1">
             <Send className="w-4 h-4 mr-2" /> Announce Teams
           </Button>
         </div>

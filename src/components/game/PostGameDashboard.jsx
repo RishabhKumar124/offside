@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { appClient } from '@/api/backendClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
-import { Star, Target, Pencil, Check, X } from 'lucide-react';
+import { Star, Target, Pencil, Check, X, Loader2 } from 'lucide-react';
+import { goingParticipantsWithHost } from '@/utils/gameParticipants';
+import { toast } from '@/components/ui/use-toast';
 
 function EditableStatRow({ stat, gameId, isHost }) {
   const queryClient = useQueryClient();
@@ -14,39 +16,37 @@ function EditableStatRow({ stat, gameId, isHost }) {
   const [goals, setGoals] = useState(stat.goals || 0);
   const [assists, setAssists] = useState(stat.assists || 0);
 
+  useEffect(() => {
+    setGoals(stat.goals || 0);
+    setAssists(stat.assists || 0);
+  }, [stat.goals, stat.assists]);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const newGoals = parseInt(goals);
-      const newAssists = parseInt(assists);
-      if (stat.id) {
-        await appClient.entities.StatSubmission.update(stat.id, {
-          goals: newGoals,
-          assists: newAssists,
-          status: 'approved',
-        });
-      } else {
-        await appClient.entities.StatSubmission.create({
-          game_id: gameId,
-          user_id: stat.user_id,
-          user_name: stat.user_name,
-          goals: newGoals,
-          assists: newAssists,
-          status: 'approved',
-        });
-      }
-      // Update career stats
-      const users = await appClient.entities.User.filter({ id: stat.user_id });
-      if (users.length > 0) {
-        const u = users[0];
-        await appClient.entities.User.update(stat.user_id, {
-          total_goals: Math.max(0, (u.total_goals || 0) - (stat.goals || 0) + newGoals),
-          total_assists: Math.max(0, (u.total_assists || 0) - (stat.assists || 0) + newAssists),
-        });
-      }
+      await appClient.postGame.upsertApprovedStatSubmission({
+        gameId,
+        userId: stat.user_id,
+        userName: stat.user_name,
+        goals,
+        assists,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stats', gameId] });
+      queryClient.invalidateQueries({ queryKey: ['player'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
       setEditing(false);
+      toast({
+        title: 'Stats saved',
+        description: `${stat.user_name}'s profile totals were updated.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Could not save stats',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -83,8 +83,8 @@ function EditableStatRow({ stat, gameId, isHost }) {
               className="w-14 h-7 text-xs px-2"
             />
           </div>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveMutation.mutate()}>
-            <Check className="w-3.5 h-3.5 text-primary" />
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /> : <Check className="w-3.5 h-3.5 text-primary" />}
           </Button>
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(false)}>
             <X className="w-3.5 h-3.5 text-destructive" />
@@ -124,18 +124,26 @@ export default function PostGameDashboard({ game, gameId, isHost }) {
   });
 
   const approvedStats = stats.filter(s => s.status === 'approved');
-  const goingRsvps = rsvps.filter(r => r.status === 'going');
+  const statsByUserId = Object.fromEntries(stats.map(s => [s.user_id, s]));
+  const goingRsvps = goingParticipantsWithHost(game, rsvps);
 
   // Build full player list: approved stats + players without stats
   const statsMap = Object.fromEntries(approvedStats.map(s => [s.user_id, s]));
-  const allPlayers = goingRsvps.map(r => statsMap[r.user_id] || {
-    user_id: r.user_id,
-    user_name: r.user_name,
-    user_photo: r.user_photo || '',
-    goals: 0,
-    assists: 0,
-    status: 'none',
-    id: null,
+  const allPlayers = goingRsvps.map(r => {
+    if (statsMap[r.user_id]) {
+      return { user_photo: r.user_photo || '', ...statsMap[r.user_id] };
+    }
+
+    const existingStat = statsByUserId[r.user_id];
+    return {
+      user_id: r.user_id,
+      user_name: existingStat?.user_name || r.user_name,
+      user_photo: r.user_photo || '',
+      goals: 0,
+      assists: 0,
+      status: existingStat?.status || 'none',
+      id: existingStat?.id || null,
+    };
   });
 
   // Sort by goals desc, then assists

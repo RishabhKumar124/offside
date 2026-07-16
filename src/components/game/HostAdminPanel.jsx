@@ -15,13 +15,13 @@ import {
 } from 'lucide-react';
 import TeamBuilder from '@/components/game/TeamBuilder';
 import { toApiDateTime, toDateTimeLocalValue } from '@/lib/dateTime';
+import { toast } from '@/components/ui/use-toast';
 
 export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSaveTeams, onAnnounceTeams }) {
   const queryClient = useQueryClient();
   const goingRsvps = rsvps.filter(r => r.status === 'going');
   const waitlistRsvps = rsvps.filter(r => r.status === 'waitlist');
 
-  // Edit game state
   const [editForm, setEditForm] = useState({
     title: game.title,
     date: toDateTimeLocalValue(game.date),
@@ -30,7 +30,6 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
     rules: game.rules || '',
   });
 
-  // Score/MVP state
   const [darkScore, setDarkScore] = useState(game.dark_score ?? 0);
   const [whiteScore, setWhiteScore] = useState(game.white_score ?? 0);
   const [mvpId, setMvpId] = useState(game.mvp_user_id || '');
@@ -47,84 +46,109 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
   }, {});
 
   const pendingStats = stats.filter(s => s.status === 'pending');
+  const submittedVoteCount = new Set(motmVotes.map(v => v.voter_id)).size;
 
-  // Mutations
+  const refreshPostGameQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+    queryClient.invalidateQueries({ queryKey: ['stats', gameId] });
+    queryClient.invalidateQueries({ queryKey: ['motm-votes', gameId] });
+    queryClient.invalidateQueries({ queryKey: ['player'] });
+    queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  };
+
   const editMutation = useMutation({
     mutationFn: () => appClient.entities.Game.update(gameId, {
       ...editForm,
       date: toApiDateTime(editForm.date),
     }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', gameId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+      toast({ title: 'Game updated', description: 'Changes were saved.' });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Could not save game',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const endGameMutation = useMutation({
-    mutationFn: async () => {
-      await appClient.entities.Game.update(gameId, { status: 'completed' });
-      for (const rsvp of goingRsvps) {
-        await appClient.entities.Notification.create({
-          user_id: rsvp.user_id,
-          type: 'submit_stats',
-          title: 'Game Over! Submit Your Stats',
-          message: `"${game.title}" has ended. Submit your goals and assists!`,
-          game_id: gameId,
-        });
-      }
+    mutationFn: () => appClient.postGame.completeGame(gameId),
+    onSuccess: () => {
+      refreshPostGameQueries();
+      toast({
+        title: 'Game ended',
+        description: 'Players were notified and games played were updated.',
+      });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', gameId] }),
+    onError: (error) => {
+      toast({
+        title: 'Could not end game',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const saveScoreMutation = useMutation({
-    mutationFn: async () => {
-      const mvpPlayer = goingRsvps.find(r => r.user_id === mvpId);
-      await appClient.entities.Game.update(gameId, {
-        dark_score: parseInt(darkScore),
-        white_score: parseInt(whiteScore),
-        mvp_user_id: mvpId,
-        mvp_name: mvpPlayer?.user_name || '',
+    mutationFn: () => appClient.postGame.saveScoreAndMvp({
+      gameId,
+      darkScore,
+      whiteScore,
+      mvpUserId: mvpId || null,
+    }),
+    onSuccess: (updatedGame) => {
+      refreshPostGameQueries();
+      toast({
+        title: updatedGame?.mvp_name ? 'Score and MVP saved' : 'Score saved',
+        description: updatedGame?.mvp_name
+          ? `${updatedGame.mvp_name} was saved as MVP.`
+          : 'Final score was saved.',
       });
-      if (mvpId) {
-        await appClient.entities.Notification.create({
-          user_id: mvpId,
-          type: 'mvp_awarded',
-          title: '🏆 You are the MVP!',
-          message: `You were selected as the MVP for "${game.title}"!`,
-          game_id: gameId,
-        });
-        const users = await appClient.entities.User.filter({ id: mvpId });
-        if (users.length > 0) {
-          await appClient.entities.User.update(mvpId, { total_mvps: (users[0].total_mvps || 0) + 1 });
-        }
-      }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['game', gameId] }),
+    onError: (error) => {
+      toast({
+        title: 'Could not save score',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const approveStatMutation = useMutation({
-    mutationFn: async (stat) => {
-      await appClient.entities.StatSubmission.update(stat.id, { status: 'approved' });
-      const users = await appClient.entities.User.filter({ id: stat.user_id });
-      if (users.length > 0) {
-        const u = users[0];
-        await appClient.entities.User.update(stat.user_id, {
-          total_goals: (u.total_goals || 0) + (stat.goals || 0),
-          total_assists: (u.total_assists || 0) + (stat.assists || 0),
-          games_played: (u.games_played || 0) + 1,
-        });
-      }
-      await appClient.entities.Notification.create({
-        user_id: stat.user_id,
-        type: 'stats_approved',
-        title: 'Stats Approved!',
-        message: `Your stats for "${game.title}" have been approved.`,
-        game_id: gameId,
+    mutationFn: (stat) => appClient.postGame.approveStatSubmission(stat.id),
+    onSuccess: (stat) => {
+      refreshPostGameQueries();
+      toast({
+        title: 'Stats approved',
+        description: `${stat.user_name}'s profile totals were updated.`,
       });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stats', gameId] }),
+    onError: (error) => {
+      toast({
+        title: 'Could not approve stats',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const rejectStatMutation = useMutation({
     mutationFn: (stat) => appClient.entities.StatSubmission.update(stat.id, { status: 'rejected' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stats', gameId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stats', gameId] });
+      toast({ title: 'Stats rejected', description: 'The player can submit again.' });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Could not reject stats',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const removePlayerMutation = useMutation({
@@ -188,7 +212,6 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
             <TabsTrigger value="edit">Edit</TabsTrigger>
           </TabsList>
 
-          {/* Players Tab */}
           <TabsContent value="players" className="space-y-3 mt-0">
             <div>
               <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Going ({goingRsvps.length})</p>
@@ -210,11 +233,17 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
                           className="h-7 w-7 text-chart-3"
                           title="Transfer host role"
                           aria-label="Transfer host role"
-                          onClick={() => makeOrganizerMutation.mutate(r)}>
+                          onClick={() => makeOrganizerMutation.mutate(r)}
+                        >
                           <Crown className="w-3.5 h-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Remove player"
-                          onClick={() => removePlayerMutation.mutate(r)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          title="Remove player"
+                          onClick={() => removePlayerMutation.mutate(r)}
+                        >
                           <UserMinus className="w-3.5 h-3.5" />
                         </Button>
                       </div>
@@ -236,8 +265,12 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
                         : <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold shrink-0">{r.user_name?.[0]}</div>
                       }
                       <span className="text-sm flex-1 truncate">{r.user_name}</span>
-                      <Button size="sm" variant="outline" className="text-primary shrink-0"
-                        onClick={() => acceptWaitlistMutation.mutate(r)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-primary shrink-0"
+                        onClick={() => acceptWaitlistMutation.mutate(r)}
+                      >
                         <CheckCircle className="w-3.5 h-3.5 mr-1" /> Accept
                       </Button>
                     </div>
@@ -247,7 +280,6 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
             )}
           </TabsContent>
 
-          {/* Teams Tab (upcoming only) */}
           {game.status === 'upcoming' && (
             <TabsContent value="teams" className="mt-0">
               <TeamBuilder
@@ -260,36 +292,38 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
             </TabsContent>
           )}
 
-          {/* Score & MVP Tab (completed only) */}
           {game.status === 'completed' && (
             <TabsContent value="score" className="space-y-4 mt-0">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">⚫ Dark Score</Label>
+                  <Label className="text-xs">Dark Score</Label>
                   <Input type="number" min={0} value={darkScore} onChange={e => setDarkScore(e.target.value)} />
                 </div>
                 <div>
-                  <Label className="text-xs">⚪ White Score</Label>
+                  <Label className="text-xs">White Score</Label>
                   <Input type="number" min={0} value={whiteScore} onChange={e => setWhiteScore(e.target.value)} />
                 </div>
               </div>
               <div>
-                <Label className="text-xs">🏆 MVP / Man of the Match</Label>
+                <Label className="text-xs">MVP / Man of the Match</Label>
                 <Select value={mvpId} onValueChange={setMvpId}>
                   <SelectTrigger><SelectValue placeholder="Select MVP" /></SelectTrigger>
                   <SelectContent>
-                    {goingRsvps
+                    {[...goingRsvps]
                       .sort((a, b) => (voteTally[b.user_id] || 0) - (voteTally[a.user_id] || 0))
                       .map(r => {
                         const voteCount = voteTally[r.user_id] || 0;
                         return (
                           <SelectItem key={r.user_id} value={r.user_id}>
-                            {r.user_name}{voteCount > 0 ? ` ⭐ ${voteCount}` : ''}
+                            {r.user_name}{voteCount > 0 ? ` - ${voteCount} vote${voteCount !== 1 ? 's' : ''}` : ''}
                           </SelectItem>
                         );
                       })}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {submittedVoteCount}/{goingRsvps.length} MVP votes in. MVP auto-announces when all confirmed players vote or the 2-hour window closes.
+                </p>
               </div>
               <Button className="w-full" onClick={() => saveScoreMutation.mutate()} disabled={saveScoreMutation.isPending}>
                 {saveScoreMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trophy className="w-4 h-4 mr-2" />}
@@ -298,7 +332,6 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
             </TabsContent>
           )}
 
-          {/* Stat Approvals Tab (completed, pending only) */}
           {game.status === 'completed' && pendingStats.length > 0 && (
             <TabsContent value="stats" className="space-y-2 mt-0">
               <div className="flex items-center gap-2 mb-2">
@@ -309,14 +342,24 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
                 <div key={stat.id} className="flex items-center justify-between p-3 bg-background rounded-lg">
                   <div>
                     <p className="text-sm font-medium">{stat.user_name}</p>
-                    <p className="text-xs text-muted-foreground">⚽ {stat.goals} goals · 🅰️ {stat.assists} assists</p>
+                    <p className="text-xs text-muted-foreground">{stat.goals} goals - {stat.assists} assists</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => approveStatMutation.mutate(stat)}>
-                      <CheckCircle className="w-3.5 h-3.5 text-primary" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => approveStatMutation.mutate(stat)}
+                      disabled={approveStatMutation.isPending}
+                    >
+                      {approveStatMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /> : <CheckCircle className="w-3.5 h-3.5 text-primary" />}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => rejectStatMutation.mutate(stat)}>
-                      <XCircle className="w-3.5 h-3.5 text-destructive" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => rejectStatMutation.mutate(stat)}
+                      disabled={rejectStatMutation.isPending}
+                    >
+                      {rejectStatMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin text-destructive" /> : <XCircle className="w-3.5 h-3.5 text-destructive" />}
                     </Button>
                   </div>
                 </div>
@@ -324,7 +367,6 @@ export default function HostAdminPanel({ game, gameId, rsvps, stats, user, onSav
             </TabsContent>
           )}
 
-          {/* Edit Game Tab */}
           <TabsContent value="edit" className="space-y-3 mt-0">
             <div>
               <Label className="text-xs">Title</Label>

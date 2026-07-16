@@ -2,6 +2,11 @@
   "appId": "com.rishabhkumar.offside",
   "appName": "Offside",
   "webDir": "dist",
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["alert", "sound"]
+    }
+  },
   "server": {
     "androidScheme": "https"
   }

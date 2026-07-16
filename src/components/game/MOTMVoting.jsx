@@ -1,9 +1,10 @@
 import { appClient } from '@/api/backendClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Star, CheckCircle } from 'lucide-react';
+import { Star, CheckCircle, Loader2 } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
-export default function MOTMVoting({ gameId, userId, goingRsvps }) {
+export default function MOTMVoting({ game, gameId, userId, goingRsvps }) {
   const queryClient = useQueryClient();
 
   const { data: votes = [] } = useQuery({
@@ -29,7 +30,38 @@ export default function MOTMVoting({ gameId, userId, goingRsvps }) {
         });
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['motm-votes', gameId] }),
+    onSuccess: async () => {
+      let updatedGame = null;
+      try {
+        updatedGame = await appClient.postGame.finalizeMvpIfReady(gameId);
+      } catch (error) {
+        console.warn('Could not auto-finalize MVP voting:', error);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['motm-votes', gameId] });
+      queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+      queryClient.invalidateQueries({ queryKey: ['player'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+
+      if (updatedGame?.mvp_user_id) {
+        toast({
+          title: 'Vote saved. MVP announced',
+          description: `${updatedGame.mvp_name} has been selected as Man of the Match.`,
+        });
+      } else {
+        toast({
+          title: 'Vote saved',
+          description: 'MVP will be announced once all players vote or the voting window closes.',
+        });
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: 'Could not save vote',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    },
   });
 
   // Tally votes
@@ -39,6 +71,15 @@ export default function MOTMVoting({ gameId, userId, goingRsvps }) {
   }, {});
 
   const eligible = goingRsvps.filter(r => r.user_id !== userId);
+  const submittedVoterIds = new Set(votes.map(v => v.voter_id));
+  const submittedVotes = submittedVoterIds.size;
+  const totalVoters = goingRsvps.length;
+  const completedAt = game?.completed_date || game?.updated_date;
+  const votingDeadline = completedAt ? new Date(new Date(completedAt).getTime() + 2 * 60 * 60 * 1000) : null;
+  const votingDeadlineLabel = votingDeadline
+    ? votingDeadline.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : null;
+  const helperText = `${submittedVotes}/${totalVoters} votes in. MVP auto-announces when everyone votes${votingDeadlineLabel ? ` or around ${votingDeadlineLabel}` : ' or after 2 hours'}.`;
 
   if (myVote) {
     return (
@@ -53,6 +94,7 @@ export default function MOTMVoting({ gameId, userId, goingRsvps }) {
             You voted for <span className="font-semibold text-foreground">{myVote.voted_for_name}</span>. 
             {' '}Tap another player to change your vote.
           </p>
+          <p className="text-xs text-muted-foreground mb-3">{helperText}</p>
           <div className="space-y-2">
             {eligible.map(player => {
               const count = tally[player.user_id] || 0;
@@ -61,6 +103,7 @@ export default function MOTMVoting({ gameId, userId, goingRsvps }) {
                 <button
                   key={player.user_id}
                   onClick={() => voteMutation.mutate(player)}
+                  disabled={voteMutation.isPending}
                   className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
                     isSelected
                       ? 'border-chart-3 bg-chart-3/10'
@@ -78,6 +121,7 @@ export default function MOTMVoting({ gameId, userId, goingRsvps }) {
                   {count > 0 && (
                     <span className="text-xs text-muted-foreground">{count} vote{count !== 1 ? 's' : ''}</span>
                   )}
+                  {voteMutation.isPending && isSelected && <Loader2 className="w-4 h-4 animate-spin text-chart-3 shrink-0" />}
                   {isSelected && <CheckCircle className="w-4 h-4 text-chart-3 shrink-0" />}
                 </button>
               );
@@ -96,11 +140,13 @@ export default function MOTMVoting({ gameId, userId, goingRsvps }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        <p className="text-xs text-muted-foreground mb-3">Who was the best player today?</p>
+        <p className="text-xs text-muted-foreground mb-3">Who was the best player today? All confirmed players, including the host, can vote.</p>
+        <p className="text-xs text-muted-foreground mb-3">{helperText}</p>
         {eligible.map(player => (
           <button
             key={player.user_id}
             onClick={() => voteMutation.mutate(player)}
+            disabled={voteMutation.isPending}
             className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted hover:border-chart-3/50 transition-all text-left"
           >
             {player.user_photo ? (
@@ -111,7 +157,11 @@ export default function MOTMVoting({ gameId, userId, goingRsvps }) {
               </div>
             )}
             <span className="text-sm font-medium">{player.user_name}</span>
-            <Star className="w-4 h-4 text-muted-foreground ml-auto shrink-0" />
+            {voteMutation.isPending ? (
+              <Loader2 className="w-4 h-4 text-muted-foreground ml-auto animate-spin shrink-0" />
+            ) : (
+              <Star className="w-4 h-4 text-muted-foreground ml-auto shrink-0" />
+            )}
           </button>
         ))}
         {eligible.length === 0 && (

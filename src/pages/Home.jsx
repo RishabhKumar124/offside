@@ -4,6 +4,7 @@ import GameCard from '@/components/game/GameCard';
 import { Loader2, Zap } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useState } from 'react';
+import { goingParticipantsWithHost } from '@/utils/gameParticipants';
 
 export default function Home() {
   const [tab, setTab] = useState('upcoming');
@@ -18,10 +19,11 @@ export default function Home() {
     queryFn: () => appClient.entities.RSVP.filter({ status: 'going' }),
   });
 
-  const rsvpCounts = {};
-  rsvps.forEach(r => {
-    rsvpCounts[r.game_id] = (rsvpCounts[r.game_id] || 0) + 1;
-  });
+  const rsvpsByGameId = rsvps.reduce((acc, rsvp) => {
+    acc[rsvp.game_id] = acc[rsvp.game_id] || [];
+    acc[rsvp.game_id].push(rsvp);
+    return acc;
+  }, {});
 
   const now = new Date();
   const upcoming = games.filter(g => g.status === 'upcoming' && new Date(g.date) >= now);
@@ -59,9 +61,10 @@ export default function Home() {
         </div>
       ) : (
         <div className="space-y-4">
-          {displayGames.map(game => (
-            <GameCard key={game.id} game={game} rsvpCount={rsvpCounts[game.id] || 0} />
-          ))}
+          {displayGames.map(game => {
+            const rsvpCount = goingParticipantsWithHost(game, rsvpsByGameId[game.id] || []).length;
+            return <GameCard key={game.id} game={game} rsvpCount={rsvpCount} />;
+          })}
         </div>
       )}
     </div>
