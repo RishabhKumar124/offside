@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Football Team Tagger</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #172033;
+      --panel-2: #202b41;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --border: #334155;
+      --white-card: #f8fafc;
+      --white-text: #0f172a;
+      --black-card: #020617;
+      --unassigned-card: #334155;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(145deg, #0b1220, #111827);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .app {
+      width: min(760px, 94vw);
+      margin: 0 auto;
+      padding: 18px 0 28px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: clamp(26px, 7vw, 38px);
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 16px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .panel {
+      background: rgba(23, 32, 51, 0.97);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: 0 15px 50px rgba(0,0,0,.22);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 170px;
+      resize: vertical;
+      background: #0b1220;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 15px;
+      line-height: 1.4;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(34,197,94,.15);
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-top: 11px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .primary { background: var(--accent); color: #052e16; }
+    .secondary { background: #334155; color: var(--text); }
+    .danger { background: #7f1d1d; color: white; }
+
+    .status {
+      color: var(--muted);
+      min-height: 21px;
+      margin-top: 9px;
+      font-size: 13px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 14px 0;
+      position: sticky;
+      top: 8px;
+      z-index: 10;
+    }
+
+    .summary-card {
+      border-radius: 12px;
+      padding: 10px 8px;
+      text-align: center;
+      font-weight: 900;
+      border: 1px solid var(--border);
+      box-shadow: 0 5px 18px rgba(0,0,0,.18);
+    }
+
+    .summary-card small {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      font-weight: 700;
+      opacity: .8;
+    }
+
+    .summary-card.unassigned { background: var(--unassigned-card); }
+    .summary-card.white { background: var(--white-card); color: var(--white-text); }
+    .summary-card.black { background: var(--black-card); border-color: #64748b; }
+
+    .players-panel {
+      margin-top: 12px;
+    }
+
+    .players-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .players-header h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    .players-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .player {
+      border-radius: 12px;
+      padding: 11px 7px;
+      min-height: 55px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-weight: 800;
+      font-size: 14px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      user-select: none;
+      word-break: break-word;
+      transition: transform .08s ease, border-color .12s ease;
+    }
+
+    .player:active { transform: scale(.97); }
+
+    .player.unassigned {
+      background: var(--unassigned-card);
+      color: var(--text);
+      border-color: #475569;
+    }
+
+    .player.white {
+      background: var(--white-card);
+      color: var(--white-text);
+      border-color: #cbd5e1;
+    }
+
+    .player.black {
+      background: var(--black-card);
+      color: white;
+      border-color: #64748b;
+    }
+
+    .empty {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      text-align: center;
+      padding: 28px 10px;
+    }
+
+    .output {
+      margin-top: 14px;
+    }
+
+    .output pre {
+      margin: 10px 0 0;
+      white-space: pre-wrap;
+      background: #0b1220;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      color: #e2e8f0;
+      font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .copy-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    @media (max-width: 430px) {
+      .app { width: min(96vw, 760px); padding-top: 10px; }
+      .panel { padding: 12px; }
+      textarea { min-height: 145px; }
+      .players-grid { gap: 6px; }
+      .player {
+        min-height: 50px;
+        font-size: 13px;
+        padding: 9px 5px;
+      }
+      .summary-card { padding: 9px 5px; font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>Football Team Tagger</h1>
+    <div class="subtitle">
+      Paste the signup message, then tap each player to cycle:
+      <strong>Unassigned → White → Black</strong>.
+    </div>
+
+    <section class="panel">
+      <textarea id="rawInput">*Thursday 7/16/2026 5:30 PM, Danehy Park*
+
+1. Rishabh
+2. Zach
+3. Alvin
+4. Ryan
+5. Mike c
+6. Le
+7. Rockwell
+8. bassil
+9. Jose T
+10. Henry
+11. Leo
+12. Jeegar
+13. Harman
+14. sam r
+15. Noah
+16. Will
+17. aos
+18. Prithvi
+
+Waitlist
+
+2. Apoorv
+3. Mervens
+4. joao
+5. Eduardo</textarea>
+
+      <div class="actions">
+        <button class="primary" id="parseBtn">Create Player List</button>
+        <button class="secondary" id="autoSplitBtn">Random 50/50</button>
+        <button class="secondary" id="clearTagsBtn">Clear Tags</button>
+        <button class="danger" id="clearAllBtn">Clear Everything</button>
+      </div>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="summary">
+      <div class="summary-card unassigned">
+        <span id="unassignedCount">0</span>
+        <small>Unassigned</small>
+      </div>
+      <div class="summary-card white">
+        <span id="whiteCount">0</span>
+        <small>White</small>
+      </div>
+      <div class="summary-card black">
+        <span id="blackCount">0</span>
+        <small>Black</small>
+      </div>
+    </section>
+
+    <section class="panel players-panel">
+      <div class="players-header">
+        <h2>Players</h2>
+        <div class="hint">Tap names to change team</div>
+      </div>
+      <div class="players-grid" id="playersGrid"></div>
+    </section>
+
+    <section class="panel output">
+      <div class="copy-row">
+        <button class="primary" id="copyBtn">Copy Teams</button>
+        <button class="secondary" id="copyNamesBtn">Copy Names Only</button>
+      </div>
+      <pre id="teamOutput">White Team:
+
+Black Team:</pre>
+    </section>
+  </main>
+
+<script>
+  let players = [];
+
+  const rawInput = document.getElementById("rawInput");
+  const statusEl = document.getElementById("status");
+  const playersGrid = document.getElementById("playersGrid");
+  const teamOutput = document.getElementById("teamOutput");
+
+  function cleanLine(line) {
+    return line
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
+      .replace(/^\s*[-*•]?\s*\d+\s*[\.\)\-:]\s*/u, "")
+      .replace(/^\s*[-*•]\s*/u, "")
+      .trim();
+  }
+
+  function parsePlayers(text) {
+    const lines = text.split(/\r?\n/);
+    const names = [];
+
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+
+      if (/^wait\s*list\b/i.test(trimmed) || /^waitlist\b/i.test(trimmed)) break;
+      if (!trimmed) continue;
+
+      const hadNumber = /^\s*[-*•]?\s*\d+\s*[\.\)\-:]/u.test(rawLine);
+      if (!hadNumber) continue;
+
+      const name = cleanLine(rawLine).replace(/\s+/g, " ").trim();
+      if (name) names.push(name);
+    }
+
+    return [...new Set(names)].map(name => ({ name, team: "unassigned" }));
+  }
+
+  function cycleTeam(team) {
+    if (team === "unassigned") return "white";
+    if (team === "white") return "black";
+    return "unassigned";
+  }
+
+  function render() {
+    playersGrid.innerHTML = "";
+
+    if (!players.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No players yet.";
+      playersGrid.appendChild(empty);
+    }
+
+    players.forEach((player, index) => {
+      const button = document.createElement("button");
+      button.className = `player ${player.team}`;
+      button.textContent = player.name;
+      button.setAttribute("aria-label", `${player.name}, ${player.team}`);
+      button.addEventListener("click", () => {
+        players[index].team = cycleTeam(players[index].team);
+        render();
+      });
+      playersGrid.appendChild(button);
+    });
+
+    const counts = {
+      unassigned: players.filter(p => p.team === "unassigned").length,
+      white: players.filter(p => p.team === "white").length,
+      black: players.filter(p => p.team === "black").length
+    };
+
+    document.getElementById("unassignedCount").textContent = counts.unassigned;
+    document.getElementById("whiteCount").textContent = counts.white;
+    document.getElementById("blackCount").textContent = counts.black;
+
+    const white = players.filter(p => p.team === "white").map(p => p.name);
+    const black = players.filter(p => p.team === "black").map(p => p.name);
+
+    teamOutput.textContent =
+      `White Team:\n${white.map((n, i) => `${i + 1}. ${n}`).join("\n")}` +
+      `\n\nBlack Team:\n${black.map((n, i) => `${i + 1}. ${n}`).join("\n")}`;
+  }
+
+  function createList() {
+    players = parsePlayers(rawInput.value);
+    statusEl.textContent = players.length
+      ? `Found ${players.length} non-waitlisted players.`
+      : "No numbered player names were found.";
+    render();
+  }
+
+  function shuffle(array) {
+    const copy = [...array];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  document.getElementById("parseBtn").addEventListener("click", createList);
+
+  document.getElementById("autoSplitBtn").addEventListener("click", () => {
+    players = shuffle(players).map((player, index) => ({
+      ...player,
+      team: index % 2 === 0 ? "white" : "black"
+    }));
+    statusEl.textContent = "Players randomly split into White and Black.";
+    render();
+  });
+
+  document.getElementById("clearTagsBtn").addEventListener("click", () => {
+    players = players.map(player => ({ ...player, team: "unassigned" }));
+    statusEl.textContent = "All team tags cleared.";
+    render();
+  });
+
+  document.getElementById("clearAllBtn").addEventListener("click", () => {
+    rawInput.value = "";
+    players = [];
+    statusEl.textContent = "Everything cleared.";
+    render();
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(teamOutput.textContent);
+      statusEl.textContent = "Team list copied.";
+    } catch {
+      statusEl.textContent = "Copy failed. Select and copy the text manually.";
+    }
+  });
+
+  document.getElementById("copyNamesBtn").addEventListener("click", async () => {
+    const white = players.filter(p => p.team === "white").map(p => p.name);
+    const black = players.filter(p => p.team === "black").map(p => p.name);
+    const text = `White: ${white.join(", ")}\nBlack: ${black.join(", ")}`;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      statusEl.textContent = "Names-only team list copied.";
+    } catch {
+      statusEl.textContent = "Copy failed. Select and copy the text manually.";
+    }
+  });
+
+  createList();
+</script>
+</body>
+</html>
