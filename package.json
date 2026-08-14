@@ -2,7 +2,19 @@
   "name": "offside",
   "private": true,
   "version": "0.0.0",
+  "description": "Mobile-first pickup soccer app for RSVPs, team balancing, player stats, and match-day coordination.",
   "type": "module",
+  "keywords": [
+    "pickup-soccer",
+    "sports-tech",
+    "react",
+    "vite",
+    "supabase",
+    "capacitor",
+    "mobile-app"
+  ],
+  "author": "Rishabh Kumar",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
