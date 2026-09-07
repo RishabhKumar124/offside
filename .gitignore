@@ -34,3 +34,4 @@ supabase/.temp/
 
 .vercel
 .env*
+base44/.app.jsonc
